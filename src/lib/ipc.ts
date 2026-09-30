@@ -204,3 +204,31 @@ export async function exitApplication(): Promise<void> {
   if (!isTauri) return;
   return await invoke<void>('exit_application');
 }
+
+export interface SequenceClipInput {
+  path: string;
+  start_sec?: number;
+  end_sec?: number;
+}
+
+export interface AudioTrackInput {
+  path: string;
+  volume: number;
+  mode: 'mix' | 'replace';
+}
+
+export interface ComposeRequest {
+  clips: SequenceClipInput[];
+  audio_track?: AudioTrackInput | null;
+  destination: string;
+}
+
+export async function pickAudioFile(): Promise<string | null> {
+  if (!isTauri) return null;
+  return await invoke<string | null>('pick_audio_file');
+}
+
+export async function composeVideoSequence(req: ComposeRequest): Promise<string> {
+  if (!isTauri) return req.destination;
+  return await invoke<string>('compose_video_sequence', { req });
+}

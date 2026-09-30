@@ -21,6 +21,23 @@ interface EditorState {
   previewUrl: string | null;
 }
 
+export interface SequenceClip {
+  id: string;
+  path: string;
+  fileName: string;
+  duration?: number;
+  trimStart?: number;
+  trimEnd?: number;
+  mediaType: 'Image' | 'Video';
+}
+
+export interface AudioTrackConfig {
+  path: string;
+  fileName: string;
+  volume: number;
+  mode: 'mix' | 'replace';
+}
+
 interface ViewerStore {
   folderPath: string;
   items: MediaItem[];
@@ -47,6 +64,10 @@ interface ViewerStore {
   // Image editing
   editor: EditorState;
 
+  // Sequence Storyboard & Audio Track
+  sequence: SequenceClip[];
+  audioTrack: AudioTrackConfig | null;
+
   // Actions
   loadFolder: (path: string) => Promise<void>;
   selectIndex: (index: number) => Promise<void>;
@@ -68,6 +89,15 @@ interface ViewerStore {
   resetEditor: () => void;
   openMediaFile: () => Promise<void>;
   openMediaFolder: () => Promise<void>;
+
+  // Sequence Actions
+  addCurrentToSequence: () => void;
+  removeClipFromSequence: (id: string) => void;
+  moveClipInSequence: (fromIndex: number, toIndex: number) => void;
+  clearSequence: () => void;
+  setAudioTrack: (track: AudioTrackConfig | null) => void;
+  updateAudioVolume: (volume: number) => void;
+  setAudioMode: (mode: 'mix' | 'replace') => void;
 }
 
 const initialEditorState: EditorState = {
@@ -103,6 +133,8 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
   trimRange: [0, 0],
 
   editor: initialEditorState,
+  sequence: [],
+  audioTrack: null,
 
   loadFolder: async (path: string) => {
     set({ loading: true, error: null, folderPath: path });
@@ -216,4 +248,44 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
       set({ error: String(e), loading: false });
     }
   },
+
+  addCurrentToSequence: () => {
+    const { items, currentIndex, duration, trimRange } = get();
+    const current = items[currentIndex];
+    if (!current) return;
+    const isVid = current.media_type === 'Video';
+    const newClip: SequenceClip = {
+      id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      path: current.path,
+      fileName: current.file_name,
+      duration: isVid ? duration : 3.0,
+      trimStart: isVid && trimRange[1] > 0 ? trimRange[0] : 0,
+      trimEnd: isVid && trimRange[1] > 0 ? trimRange[1] : (isVid ? duration : 3.0),
+      mediaType: current.media_type as 'Image' | 'Video',
+    };
+    set((s) => ({ sequence: [...s.sequence, newClip] }));
+  },
+
+  removeClipFromSequence: (id) =>
+    set((s) => ({ sequence: s.sequence.filter((c) => c.id !== id) })),
+
+  moveClipInSequence: (fromIndex, toIndex) =>
+    set((s) => {
+      if (fromIndex < 0 || fromIndex >= s.sequence.length) return s;
+      if (toIndex < 0 || toIndex >= s.sequence.length) return s;
+      const nextSeq = [...s.sequence];
+      const [moved] = nextSeq.splice(fromIndex, 1);
+      nextSeq.splice(toIndex, 0, moved);
+      return { sequence: nextSeq };
+    }),
+
+  clearSequence: () => set({ sequence: [] }),
+
+  setAudioTrack: (audioTrack) => set({ audioTrack }),
+
+  updateAudioVolume: (volume) =>
+    set((s) => (s.audioTrack ? { audioTrack: { ...s.audioTrack, volume } } : s)),
+
+  setAudioMode: (mode) =>
+    set((s) => (s.audioTrack ? { audioTrack: { ...s.audioTrack, mode } } : s)),
 }));

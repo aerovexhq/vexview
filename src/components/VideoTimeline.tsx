@@ -25,6 +25,7 @@ export const VideoTimeline: React.FC = () => {
     toggleFilmstrip,
     showInspector,
     toggleInspector,
+    addCurrentToSequence,
   } = useViewerStore();
 
   const trackRef = useRef<HTMLDivElement>(null);
@@ -250,6 +251,13 @@ export const VideoTimeline: React.FC = () => {
               In: {formatTime(trimRange[0])} → Out: {formatTime(trimRange[1])} (
               {(trimRange[1] - trimRange[0]).toFixed(2)}s)
             </div>
+            <button
+              className={styles.gifBtn}
+              onClick={addCurrentToSequence}
+              title="Add this trimmed segment to Storyboard Sequencer"
+            >
+              + Clip
+            </button>
             <button className={styles.gifBtn} onClick={handleGifExport} title="Export selected clip as GIF">
               GIF
             </button>
@@ -311,6 +319,18 @@ export const VideoTimeline: React.FC = () => {
               <line x1="20" y1="4" x2="8.12" y2="15.88" />
               <line x1="14.47" y1="14.48" x2="20" y2="20" />
               <line x1="8.12" y1="8.12" x2="12" y2="12" />
+            </svg>
+          </button>
+
+          {/* Sequencer & Editor Drawer Toggle */}
+          <button
+            className={`${styles.controlBtn} ${activeMode === 'edit' ? styles.active : ''}`}
+            onClick={() => setActiveMode(activeMode === 'edit' ? 'view' : 'edit')}
+            title="Open Sequencer Storyboard & Music Editor (E)"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
             </svg>
           </button>
 

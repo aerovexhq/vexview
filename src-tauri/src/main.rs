@@ -222,6 +222,30 @@ async fn open_folder_dialog() -> Result<Option<String>, String> {
     Ok(folder.map(|f| f.path().to_string_lossy().to_string()))
 }
 
+#[tauri::command]
+async fn pick_audio_file() -> Result<Option<String>, String> {
+    let file = rfd::AsyncFileDialog::new()
+        .add_filter(
+            "Audio Files",
+            &["mp3", "wav", "aac", "m4a", "ogg", "flac", "wma"],
+        )
+        .set_title("Select Background Audio / Music Track")
+        .pick_file()
+        .await;
+
+    Ok(file.map(|f| f.path().to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+async fn compose_video_sequence(req: lux_video::ComposeRequest) -> Result<String, String> {
+    let dest = req.destination.clone();
+    tauri::async_runtime::spawn_blocking(move || lux_video::compose_video_sequence(req))
+        .await
+        .map_err(|e| format!("Task spawn error: {}", e))?
+        .map_err(|e| format!("Composition failed: {}", e))?;
+    Ok(dest)
+}
+
 fn sync_autostart_file(enable: bool) {
     if let Some(home) = std::env::var_os("HOME") {
         let autostart_dir = std::path::PathBuf::from(home)
@@ -354,6 +378,8 @@ fn main() {
             export_video_to_gif,
             open_file_dialog,
             open_folder_dialog,
+            pick_audio_file,
+            compose_video_sequence,
             get_viewer_config,
             save_viewer_config,
             exit_application,

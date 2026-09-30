@@ -1,0 +1,16 @@
+[Desktop Entry]
+Name=luxviewer
+Comment=Modern & Minimalistic Image and Video Viewer & Editor for Linux
+Exec=luxviewer %U
+Terminal=false
+Type=Application
+Icon=luxviewer
+Categories=Graphics;Photography;Viewer;Video;AudioVideo;
+MimeType=image/png;image/jpeg;image/webp;image/svg+xml;image/gif;image/bmp;image/avif;image/tiff;video/mp4;video/x-matroska;video/webm;video/quicktime;video/x-msvideo;
+Keywords=image;photo;picture;viewer;editor;video;player;trim;crop;
+StartupNotify=true
+Actions=NewWindow;
+
+[Desktop Action NewWindow]
+Name=Open New Window
+Exec=luxviewer

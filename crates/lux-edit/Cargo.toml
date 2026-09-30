@@ -1,0 +1,16 @@
+[package]
+name = "lux-edit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+lux-core.workspace = true
+lux-image.workspace = true
+image.workspace = true
+imageproc.workspace = true
+fast_image_resize.workspace = true
+thiserror.workspace = true
+log.workspace = true
+serde.workspace = true

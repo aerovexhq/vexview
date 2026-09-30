@@ -1,0 +1,26 @@
+[package]
+name = "lux-gui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[features]
+default = []
+gtk = ["dep:gtk4", "dep:libadwaita"]
+
+[dependencies]
+lux-core.workspace = true
+lux-image.workspace = true
+lux-video.workspace = true
+lux-edit.workspace = true
+anyhow.workspace = true
+env_logger.workspace = true
+log.workspace = true
+
+gtk4 = { version = "0.9", optional = true }
+libadwaita = { version = "0.7", optional = true }
+
+[[bin]]
+name = "luxviewer"
+path = "src/main.rs"

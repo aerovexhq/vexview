@@ -1,0 +1,16 @@
+[package]
+name = "lux-image"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+lux-core.workspace = true
+image.workspace = true
+fast_image_resize.workspace = true
+resvg.workspace = true
+exif.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+log.workspace = true

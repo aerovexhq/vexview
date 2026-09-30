@@ -1,0 +1,77 @@
+use serde::{Deserialize, Serialize};
+use std::path::Path;
+use std::process::Command;
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct VideoMetadata {
+    pub duration_seconds: f64,
+    pub width: u32,
+    pub height: u32,
+    pub video_codec: Option<String>,
+    pub audio_codec: Option<String>,
+    pub frame_rate: Option<f64>,
+    pub bit_rate: Option<u64>,
+}
+
+/// Probes a video file using ffprobe if available.
+pub fn probe_video<P: AsRef<Path>>(path: P) -> Option<VideoMetadata> {
+    let output = Command::new("ffprobe")
+        .args([
+            "-v",
+            "quiet",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+        ])
+        .arg(path.as_ref())
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let json_val: serde_json::Value = serde_json::from_slice(&output.stdout).ok()?;
+    let mut meta = VideoMetadata::default();
+
+    if let Some(format) = json_val.get("format") {
+        if let Some(dur_str) = format.get("duration").and_then(|d| d.as_str()) {
+            meta.duration_seconds = dur_str.parse().unwrap_or(0.0);
+        }
+        if let Some(br_str) = format.get("bit_rate").and_then(|b| b.as_str()) {
+            meta.bit_rate = br_str.parse().ok();
+        }
+    }
+
+    if let Some(streams) = json_val.get("streams").and_then(|s| s.as_array()) {
+        for s in streams {
+            let codec_type = s.get("codec_type").and_then(|c| c.as_str());
+            if codec_type == Some("video") && meta.width == 0 {
+                meta.width = s.get("width").and_then(|w| w.as_u64()).unwrap_or(0) as u32;
+                meta.height = s.get("height").and_then(|h| h.as_u64()).unwrap_or(0) as u32;
+                meta.video_codec = s
+                    .get("codec_name")
+                    .and_then(|c| c.as_str())
+                    .map(|s| s.to_string());
+                if let Some(r_fps) = s.get("r_frame_rate").and_then(|f| f.as_str()) {
+                    let parts: Vec<&str> = r_fps.split('/').collect();
+                    if parts.len() == 2 {
+                        let num: f64 = parts[0].parse().unwrap_or(0.0);
+                        let den: f64 = parts[1].parse().unwrap_or(1.0);
+                        if den > 0.0 {
+                            meta.frame_rate = Some(num / den);
+                        }
+                    }
+                }
+            } else if codec_type == Some("audio") && meta.audio_codec.is_none() {
+                meta.audio_codec = s
+                    .get("codec_name")
+                    .and_then(|c| c.as_str())
+                    .map(|s| s.to_string());
+            }
+        }
+    }
+
+    Some(meta)
+}

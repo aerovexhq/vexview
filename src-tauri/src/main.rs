@@ -185,11 +185,164 @@ fn export_video_to_gif(
         .map_err(|e| format!("GIF export failed: {}", e))
 }
 
+#[tauri::command]
+async fn open_file_dialog() -> Result<Option<String>, String> {
+    let file = rfd::AsyncFileDialog::new()
+        .add_filter(
+            "Media Files",
+            &[
+                "png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "avif", "ico", "tiff", "mp4",
+                "mkv", "webm", "avi", "mov", "flv", "wmv",
+            ],
+        )
+        .add_filter(
+            "Images",
+            &[
+                "png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "avif", "ico", "tiff",
+            ],
+        )
+        .add_filter(
+            "Videos",
+            &["mp4", "mkv", "webm", "avi", "mov", "flv", "wmv"],
+        )
+        .set_title("Open Media File")
+        .pick_file()
+        .await;
+
+    Ok(file.map(|f| f.path().to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+async fn open_folder_dialog() -> Result<Option<String>, String> {
+    let folder = rfd::AsyncFileDialog::new()
+        .set_title("Open Media Folder")
+        .pick_folder()
+        .await;
+
+    Ok(folder.map(|f| f.path().to_string_lossy().to_string()))
+}
+
+fn sync_autostart_file(enable: bool) {
+    if let Some(home) = std::env::var_os("HOME") {
+        let autostart_dir = std::path::PathBuf::from(home)
+            .join(".config")
+            .join("autostart");
+        let autostart_file = autostart_dir.join("luxviewer.desktop");
+
+        if enable {
+            let _ = std::fs::create_dir_all(&autostart_dir);
+            let desktop_content = "[Desktop Entry]\n\
+                Type=Application\n\
+                Name=luxviewer\n\
+                Comment=Modern & Minimalistic Image and Video Viewer\n\
+                Exec=luxviewer\n\
+                Icon=luxviewer\n\
+                Terminal=false\n\
+                Categories=Graphics;Viewer;\n\
+                X-GNOME-Autostart-enabled=true\n";
+            let _ = std::fs::write(autostart_file, desktop_content);
+        } else {
+            let _ = std::fs::remove_file(autostart_file);
+        }
+    }
+}
+
+#[tauri::command]
+fn get_viewer_config() -> Result<lux_core::ViewerConfig, String> {
+    Ok(lux_core::ViewerConfig::load())
+}
+
+#[tauri::command]
+fn save_viewer_config(config: lux_core::ViewerConfig) -> Result<(), String> {
+    sync_autostart_file(config.autostart_at_boot);
+    config
+        .save()
+        .map_err(|e| format!("Failed to save config: {}", e))
+}
+
+#[tauri::command]
+fn exit_application(app: tauri::AppHandle) -> Result<(), String> {
+    app.exit(0);
+    Ok(())
+}
+
 fn main() {
     env_logger::init();
 
+    let cfg = lux_core::ViewerConfig::load();
+    if cfg.autostart_at_boot {
+        sync_autostart_file(true);
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            use tauri::menu::{Menu, MenuItem};
+            use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+            use tauri::{Emitter, Manager};
+
+            let open_item = MenuItem::with_id(app, "open", "Open luxviewer", true, None::<&str>)?;
+            let settings_item =
+                MenuItem::with_id(app, "settings", "Settings...", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit luxviewer", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open_item, &settings_item, &quit_item])?;
+
+            if let Some(icon) = app.default_window_icon() {
+                let _tray = TrayIconBuilder::new()
+                    .icon(icon.clone())
+                    .menu(&menu)
+                    .show_menu_on_left_click(false)
+                    .on_menu_event(|app, event| match event.id.as_ref() {
+                        "open" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        "settings" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                                let _ = window.emit("open-settings", ());
+                            }
+                        }
+                        "quit" => {
+                            app.exit(0);
+                        }
+                        _ => {}
+                    })
+                    .on_tray_icon_event(|tray, event| {
+                        if let TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        } = event
+                        {
+                            let app = tray.app_handle();
+                            if let Some(window) = app.get_webview_window("main") {
+                                if window.is_visible().unwrap_or(false) {
+                                    let _ = window.hide();
+                                } else {
+                                    let _ = window.show();
+                                    let _ = window.set_focus();
+                                }
+                            }
+                        }
+                    })
+                    .build(app)?;
+            }
+
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let config = lux_core::ViewerConfig::load();
+                if config.keep_running_in_background {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             scan_folder,
             load_image_detail,
@@ -199,6 +352,11 @@ fn main() {
             trim_video_clip,
             capture_video_snapshot,
             export_video_to_gif,
+            open_file_dialog,
+            open_folder_dialog,
+            get_viewer_config,
+            save_viewer_config,
+            exit_application,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

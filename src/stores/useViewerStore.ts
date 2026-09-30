@@ -6,6 +6,8 @@ import {
   scanFolder,
   loadImageDetail,
   probeVideo,
+  openFileDialog,
+  openFolderDialog,
 } from '../lib/ipc';
 
 interface EditorState {
@@ -60,6 +62,8 @@ interface ViewerStore {
   setTrimRange: (range: [number, number]) => void;
   updateEditor: (partial: Partial<EditorState>) => void;
   resetEditor: () => void;
+  openMediaFile: () => Promise<void>;
+  openMediaFolder: () => Promise<void>;
 }
 
 const initialEditorState: EditorState = {
@@ -176,4 +180,30 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
   updateEditor: (partial) =>
     set((s) => ({ editor: { ...s.editor, ...partial } })),
   resetEditor: () => set({ editor: initialEditorState }),
+
+  openMediaFile: async () => {
+    try {
+      const selectedPath = await openFileDialog();
+      if (!selectedPath) return;
+
+      const parentDir = selectedPath.substring(0, selectedPath.lastIndexOf('/')) || '.';
+      set({ loading: true, error: null, folderPath: parentDir });
+      const items = await scanFolder(parentDir);
+      const targetIdx = items.findIndex((it) => it.path === selectedPath);
+      set({ items, currentIndex: targetIdx >= 0 ? targetIdx : 0 });
+      await get().selectIndex(targetIdx >= 0 ? targetIdx : 0);
+    } catch (e) {
+      set({ error: String(e), loading: false });
+    }
+  },
+
+  openMediaFolder: async () => {
+    try {
+      const selectedDir = await openFolderDialog();
+      if (!selectedDir) return;
+      await get().loadFolder(selectedDir);
+    } catch (e) {
+      set({ error: String(e), loading: false });
+    }
+  },
 }));

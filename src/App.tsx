@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Titlebar } from './components/Titlebar';
 import { Viewport } from './components/Viewport';
 import { FloatingHud } from './components/FloatingHud';
@@ -6,6 +6,7 @@ import { Filmstrip } from './components/Filmstrip';
 import { EditorDrawer } from './components/EditorDrawer';
 import { VideoTimeline } from './components/VideoTimeline';
 import { InspectorModal } from './components/InspectorModal';
+import { SettingsModal } from './components/SettingsModal';
 import { useViewerStore } from './stores/useViewerStore';
 import styles from './App.module.css';
 
@@ -25,18 +26,51 @@ export const App: React.FC = () => {
     setActiveMode,
     toggleFilmstrip,
     toggleInspector,
+    openMediaFile,
   } = useViewerStore();
+
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Load current directory on initial mount
   useEffect(() => {
     loadFolder('.');
   }, [loadFolder]);
 
+  // Listen to open-settings event from system tray
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    import('@tauri-apps/api/event')
+      .then(({ listen }) => {
+        listen('open-settings', () => {
+          setIsSettingsOpen(true);
+        }).then((u) => {
+          unlisten = u;
+        });
+      })
+      .catch(() => {});
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
+
   // Global tactile keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if user is typing in an input
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'o' || e.key === 'O')) {
+        e.preventDefault();
+        openMediaFile();
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && (e.key === ',' || e.key === '<')) {
+        e.preventDefault();
+        setIsSettingsOpen(true);
         return;
       }
 
@@ -114,13 +148,17 @@ export const App: React.FC = () => {
 
   return (
     <div className={styles.appContainer}>
-      <Titlebar />
+      <Titlebar onOpenSettings={() => setIsSettingsOpen(true)} />
       <div className={styles.mainArea}>
         <Viewport />
         <FloatingHud />
         <VideoTimeline />
         <EditorDrawer />
         <InspectorModal />
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+        />
       </div>
       <Filmstrip />
     </div>

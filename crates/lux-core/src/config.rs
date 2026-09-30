@@ -20,6 +20,8 @@ pub struct ViewerConfig {
     pub cache_capacity: usize,
     pub background_dark: bool,
     pub show_filmstrip: bool,
+    pub autostart_at_boot: bool,
+    pub keep_running_in_background: bool,
 }
 
 impl Default for ViewerConfig {
@@ -33,6 +35,8 @@ impl Default for ViewerConfig {
             cache_capacity: 10,
             background_dark: true,
             show_filmstrip: true,
+            autostart_at_boot: true,
+            keep_running_in_background: true,
         }
     }
 }

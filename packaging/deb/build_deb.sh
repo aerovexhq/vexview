@@ -12,6 +12,7 @@ echo "==> Building Debian package for ${PACKAGE_NAME} v${VERSION} (${ARCH})..."
 mkdir -p "${BUILD_ROOT}/DEBIAN"
 mkdir -p "${BUILD_ROOT}/usr/bin"
 mkdir -p "${BUILD_ROOT}/usr/share/applications"
+mkdir -p "${BUILD_ROOT}/etc/xdg/autostart"
 mkdir -p "${BUILD_ROOT}/usr/share/icons/hicolor/128x128/apps"
 mkdir -p "${BUILD_ROOT}/usr/share/icons/hicolor/32x32/apps"
 
@@ -27,6 +28,7 @@ fi
 
 install -m 755 "${BINARY_PATH}" "${BUILD_ROOT}/usr/bin/luxviewer"
 install -m 644 "packaging/luxviewer.desktop" "${BUILD_ROOT}/usr/share/applications/luxviewer.desktop"
+install -m 644 "packaging/luxviewer.desktop" "${BUILD_ROOT}/etc/xdg/autostart/luxviewer.desktop"
 install -m 644 "src-tauri/icons/128x128.png" "${BUILD_ROOT}/usr/share/icons/hicolor/128x128/apps/luxviewer.png"
 install -m 644 "src-tauri/icons/32x32.png" "${BUILD_ROOT}/usr/share/icons/hicolor/32x32/apps/luxviewer.png"
 

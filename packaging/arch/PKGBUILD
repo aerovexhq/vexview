@@ -16,6 +16,7 @@ package() {
     cd "${srcdir}"
     install -Dm755 "luxviewer" "${pkgdir}/usr/bin/luxviewer"
     install -Dm644 "luxviewer.desktop" "${pkgdir}/usr/share/applications/luxviewer.desktop"
+    install -Dm644 "luxviewer.desktop" "${pkgdir}/etc/xdg/autostart/luxviewer.desktop"
     install -Dm644 "icons/128x128.png" "${pkgdir}/usr/share/icons/hicolor/128x128/apps/luxviewer.png"
     install -Dm644 "icons/32x32.png" "${pkgdir}/usr/share/icons/hicolor/32x32/apps/luxviewer.png"
     install -Dm644 "LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"

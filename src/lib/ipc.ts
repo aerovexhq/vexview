@@ -149,3 +149,58 @@ export async function exportGif(
     width,
   });
 }
+
+export async function openFileDialog(): Promise<string | null> {
+  if (!isTauri) {
+    return null;
+  }
+  return await invoke<string | null>('open_file_dialog');
+}
+
+export async function openFolderDialog(): Promise<string | null> {
+  if (!isTauri) {
+    return null;
+  }
+  return await invoke<string | null>('open_folder_dialog');
+}
+
+export interface ViewerConfig {
+  auto_play_videos: boolean;
+  loop_videos: boolean;
+  default_volume: number;
+  wrap_navigation: boolean;
+  default_zoom_mode: 'FitToWindow' | 'OriginalSize' | 'Stretch';
+  cache_capacity: number;
+  background_dark: boolean;
+  show_filmstrip: boolean;
+  autostart_at_boot: boolean;
+  keep_running_in_background: boolean;
+}
+
+export async function getViewerConfig(): Promise<ViewerConfig> {
+  if (!isTauri) {
+    return {
+      auto_play_videos: true,
+      loop_videos: true,
+      default_volume: 1.0,
+      wrap_navigation: true,
+      default_zoom_mode: 'FitToWindow',
+      cache_capacity: 10,
+      background_dark: true,
+      show_filmstrip: true,
+      autostart_at_boot: true,
+      keep_running_in_background: true,
+    };
+  }
+  return await invoke<ViewerConfig>('get_viewer_config');
+}
+
+export async function saveViewerConfig(config: ViewerConfig): Promise<void> {
+  if (!isTauri) return;
+  return await invoke<void>('save_viewer_config', { config });
+}
+
+export async function exitApplication(): Promise<void> {
+  if (!isTauri) return;
+  return await invoke<void>('exit_application');
+}

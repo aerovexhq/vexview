@@ -13,10 +13,12 @@ if [ "$(id -u)" -eq 0 ]; then
     BIN_DIR="/usr/local/bin"
     APPS_DIR="/usr/share/applications"
     ICON_DIR="/usr/share/icons/hicolor"
+    AUTOSTART_DIR="/etc/xdg/autostart"
 else
     BIN_DIR="${HOME}/.local/bin"
     APPS_DIR="${HOME}/.local/share/applications"
     ICON_DIR="${HOME}/.local/share/icons/hicolor"
+    AUTOSTART_DIR="${HOME}/.config/autostart"
 fi
 
 # Handle uninstall flag
@@ -24,6 +26,7 @@ if [ "$1" = "--uninstall" ] || [ "$1" = "-u" ]; then
     echo "==> Uninstalling ${APP_NAME}..."
     rm -f "${BIN_DIR}/${APP_NAME}"
     rm -f "${APPS_DIR}/${APP_NAME}.desktop"
+    rm -f "${AUTOSTART_DIR}/${APP_NAME}.desktop"
     rm -f "${ICON_DIR}/128x128/apps/${APP_NAME}.png"
     rm -f "${ICON_DIR}/32x32/apps/${APP_NAME}.png"
     echo "==> ${APP_NAME} successfully uninstalled."
@@ -64,10 +67,11 @@ echo "==> Extracting archive..."
 tar -xzf "${TMP_DIR}/luxviewer.tar.gz" -C "${TMP_DIR}"
 
 echo "==> Installing files..."
-mkdir -p "${BIN_DIR}" "${APPS_DIR}" "${ICON_DIR}/128x128/apps" "${ICON_DIR}/32x32/apps"
+mkdir -p "${BIN_DIR}" "${APPS_DIR}" "${AUTOSTART_DIR}" "${ICON_DIR}/128x128/apps" "${ICON_DIR}/32x32/apps"
 
 install -m 755 "${TMP_DIR}/luxviewer" "${BIN_DIR}/${APP_NAME}"
 install -m 644 "${TMP_DIR}/luxviewer.desktop" "${APPS_DIR}/${APP_NAME}.desktop"
+install -m 644 "${TMP_DIR}/luxviewer.desktop" "${AUTOSTART_DIR}/${APP_NAME}.desktop"
 if [ -f "${TMP_DIR}/icons/128x128.png" ]; then
     install -m 644 "${TMP_DIR}/icons/128x128.png" "${ICON_DIR}/128x128/apps/${APP_NAME}.png"
 fi

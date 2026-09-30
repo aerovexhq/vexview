@@ -9,7 +9,7 @@ authors.workspace = true
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -21,3 +21,4 @@ image = { workspace = true }
 log = { workspace = true }
 env_logger = { workspace = true }
 base64 = "0.22"
+rfd = "0.15"

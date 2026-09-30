@@ -53,6 +53,7 @@ interface ViewerStore {
   prevItem: () => Promise<void>;
   setZoom: (zoom: number) => void;
   setPan: (pan: { x: number; y: number }) => void;
+  setZoomAndPan: (zoom: number, pan: { x: number; y: number }) => void;
   resetView: () => void;
   setActiveMode: (mode: 'view' | 'edit' | 'trim') => void;
   toggleFilmstrip: () => void;
@@ -167,6 +168,8 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
 
   setZoom: (zoom) => set({ zoom: Math.max(0.1, Math.min(zoom, 32.0)) }),
   setPan: (pan) => set({ pan }),
+  setZoomAndPan: (zoom, pan) =>
+    set({ zoom: Math.max(0.1, Math.min(zoom, 32.0)), pan }),
   resetView: () => set({ zoom: 1.0, pan: { x: 0, y: 0 } }),
 
   setActiveMode: (activeMode) => set({ activeMode }),

@@ -9,8 +9,8 @@ export const Viewport: React.FC = () => {
     imageDetail,
     zoom,
     pan,
-    setZoom,
     setPan,
+    setZoomAndPan,
     resetView,
     activeMode,
     editor,
@@ -22,28 +22,88 @@ export const Viewport: React.FC = () => {
   } = useViewerStore();
 
   const viewportRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  const panRef = useRef(pan);
+  const zoomRef = useRef(zoom);
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const rafRef = useRef<number | null>(null);
+
   const [isSplitting, setIsSplitting] = useState(false);
 
   const current = items[currentIndex];
 
-  // Mouse wheel zoom
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.15 : 0.85;
-    setZoom(zoom * factor);
-  };
+  // Keep refs synchronized with external store changes (navigation, reset, HUD clicks)
+  useEffect(() => {
+    panRef.current = pan;
+    zoomRef.current = zoom;
+    if (canvasRef.current && !isDraggingRef.current) {
+      canvasRef.current.style.transform = `translate3d(${pan.x}px, ${pan.y}px, 0px) scale(${zoom})`;
+    }
+  }, [pan, zoom]);
 
-  // Mouse pan drag
-  const handleMouseDown = (e: React.MouseEvent) => {
+  // Non-passive wheel listener for smooth cursor-centered zoom without browser scroll lag
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+
+    const handleWheelNative = (e: WheelEvent) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.15 : 0.85;
+      const currentZoom = zoomRef.current;
+      const currentPan = panRef.current;
+      const newZoom = Math.max(0.1, Math.min(currentZoom * factor, 32.0));
+
+      if (newZoom !== currentZoom && el) {
+        const rect = el.getBoundingClientRect();
+        const offsetX = e.clientX - (rect.left + rect.width / 2);
+        const offsetY = e.clientY - (rect.top + rect.height / 2);
+        const scaleRatio = newZoom / currentZoom;
+        const newPanX = offsetX - (offsetX - currentPan.x) * scaleRatio;
+        const newPanY = offsetY - (offsetY - currentPan.y) * scaleRatio;
+
+        const updatedPan = { x: Math.round(newPanX), y: Math.round(newPanY) };
+        panRef.current = updatedPan;
+        zoomRef.current = newZoom;
+
+        if (canvasRef.current) {
+          canvasRef.current.style.transform = `translate3d(${updatedPan.x}px, ${updatedPan.y}px, 0px) scale(${newZoom})`;
+        }
+
+        setZoomAndPan(newZoom, updatedPan);
+      }
+    };
+
+    el.addEventListener('wheel', handleWheelNative, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheelNative);
+    };
+  }, [setZoomAndPan]);
+
+  // Pointer drag pan with direct GPU RAF pipeline for zero-lag tracking
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+    if ((e.target as HTMLElement).closest(`.${styles.splitHandle}`)) return;
+    if ((e.target as HTMLElement).closest(`.${styles.buttonGroup}`)) return;
+
+    isDraggingRef.current = true;
+    dragStartRef.current = {
+      x: e.clientX - panRef.current.x,
+      y: e.clientY - panRef.current.y,
+    };
+
+    if (viewportRef.current) {
+      viewportRef.current.dataset.dragging = 'true';
+    }
+
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch (_) {}
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (isSplitting && viewportRef.current) {
       const rect = viewportRef.current.getBoundingClientRect();
       const pos = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
@@ -51,22 +111,75 @@ export const Viewport: React.FC = () => {
       return;
     }
 
-    if (!isDragging) return;
-    setPan({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y,
-    });
+    if (!isDraggingRef.current) return;
+
+    panRef.current = {
+      x: e.clientX - dragStartRef.current.x,
+      y: e.clientY - dragStartRef.current.y,
+    };
+
+    if (rafRef.current === null) {
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        if (canvasRef.current) {
+          canvasRef.current.style.transform = `translate3d(${panRef.current.x}px, ${panRef.current.y}px, 0px) scale(${zoomRef.current})`;
+        }
+      });
+    }
   };
 
-  const handleMouseUp = () => {
-    setIsDragging(false);
-    setIsSplitting(false);
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isSplitting) {
+      setIsSplitting(false);
+    }
+
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false;
+
+      if (viewportRef.current) {
+        viewportRef.current.dataset.dragging = 'false';
+      }
+
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch (_) {}
+
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+
+      if (canvasRef.current) {
+        canvasRef.current.style.transform = `translate3d(${panRef.current.x}px, ${panRef.current.y}px, 0px) scale(${zoomRef.current})`;
+      }
+
+      setPan(panRef.current);
+    }
   };
 
-  // Double click toggles between fit (1.0) and 2.5x zoom
-  const handleDoubleClick = () => {
-    if (zoom === 1.0) {
-      setZoom(2.0);
+  // Double click toggles between fit (1.0) and 2.5x zoom centered on click
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest(`.${styles.splitHandle}`)) return;
+    if ((e.target as HTMLElement).closest(`.${styles.buttonGroup}`)) return;
+
+    if (zoom === 1.0 && viewportRef.current) {
+      const rect = viewportRef.current.getBoundingClientRect();
+      const offsetX = e.clientX - (rect.left + rect.width / 2);
+      const offsetY = e.clientY - (rect.top + rect.height / 2);
+      const newZoom = 2.5;
+      const scaleRatio = newZoom / zoom;
+      const newPanX = offsetX - (offsetX - panRef.current.x) * scaleRatio;
+      const newPanY = offsetY - (offsetY - panRef.current.y) * scaleRatio;
+      const updatedPan = { x: Math.round(newPanX), y: Math.round(newPanY) };
+
+      panRef.current = updatedPan;
+      zoomRef.current = newZoom;
+
+      if (canvasRef.current) {
+        canvasRef.current.style.transform = `translate3d(${updatedPan.x}px, ${updatedPan.y}px, 0px) scale(${newZoom})`;
+      }
+
+      setZoomAndPan(newZoom, updatedPan);
     } else {
       resetView();
     }
@@ -154,16 +267,17 @@ export const Viewport: React.FC = () => {
     <div
       ref={viewportRef}
       className={styles.viewport}
-      onWheel={handleWheel}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       onDoubleClick={handleDoubleClick}
     >
       <div
+        ref={canvasRef}
         className={styles.canvasContainer}
         style={{
-          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+          transform: `translate3d(${pan.x}px, ${pan.y}px, 0px) scale(${zoom})`,
         }}
       >
         {isVideo ? (
@@ -199,7 +313,7 @@ export const Viewport: React.FC = () => {
             <div
               className={styles.splitHandle}
               style={{ left: `${editor.splitPosition}%` }}
-              onMouseDown={(e) => {
+              onPointerDown={(e) => {
                 e.stopPropagation();
                 setIsSplitting(true);
               }}

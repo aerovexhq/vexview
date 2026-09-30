@@ -7,20 +7,22 @@
   justify-content: center;
   background-color: var(--bg-canvas);
   cursor: grab;
+  touch-action: none;
 
-  &:active {
-    cursor: grabbing;
+  &:active,
+  &[data-dragging='true'] {
+    cursor: grabbing !important;
   }
 }
 
 .canvasContainer {
   position: absolute;
   transform-origin: center center;
-  transition: transform 60ms linear;
   display: flex;
   align-items: center;
   justify-content: center;
   user-select: none;
+  will-change: transform;
 }
 
 .imageElement {
@@ -36,6 +38,7 @@
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
   border-radius: var(--radius-sm);
   outline: none;
+  pointer-events: none;
 }
 
 /* Split Comparison View for Editing */

@@ -1,77 +1,51 @@
 .timelineWrapper {
   position: absolute;
-  bottom: 68px;
-  left: 20px;
-  right: 20px;
-  background-color: var(--bg-hud);
-  backdrop-filter: blur(16px);
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 48px);
+  max-width: 960px;
+  background-color: rgba(14, 16, 22, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--border-hairline);
-  border-radius: var(--radius-md);
-  padding: 10px 16px;
+  border-radius: var(--radius-lg);
+  padding: 10px 16px 10px 16px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   z-index: 35;
-  box-shadow: var(--shadow-hud);
-}
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.65), 0 0 1px rgba(255, 255, 255, 0.1);
+  transition: opacity 300ms var(--ease-out-expo), transform 300ms var(--ease-out-expo);
+  user-select: none;
 
-.topRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.timeDisplay {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.actionRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.trimBtn {
-  background-color: var(--text-accent);
-  border: none;
-  color: #000;
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-
-  &:hover {
-    background-color: var(--text-accent-hover);
+  &.hidden {
+    opacity: 0;
+    transform: translate(-50%, 14px);
+    pointer-events: none;
   }
 }
 
-.gifBtn {
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-primary);
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-
-  &:hover {
-    background-color: var(--bg-card-hover);
-  }
-}
-
+/* Scrubber Track */
 .trackContainer {
   position: relative;
-  height: 24px;
-  background-color: var(--bg-card);
+  height: 20px;
+  background-color: rgba(255, 255, 255, 0.04);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-hairline);
   cursor: pointer;
-  overflow: hidden;
+  overflow: visible;
+  transition: background-color var(--transition-fast);
+
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.07);
+
+    .scrubHandle {
+      transform: translateX(-50%) scale(1.15);
+      background-color: var(--text-accent);
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.8);
+    }
+  }
 }
 
 .playheadProgress {
@@ -79,7 +53,8 @@
   top: 0;
   bottom: 0;
   left: 0;
-  background-color: rgba(255, 255, 255, 0.08);
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.25), rgba(245, 158, 11, 0.45));
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   pointer-events: none;
 }
 
@@ -95,10 +70,180 @@
 
 .scrubHandle {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
+  top: -2px;
+  bottom: -2px;
+  width: 4px;
   background-color: #fff;
-  box-shadow: 0 0 6px #fff;
+  border-radius: 2px;
+  transform: translateX(-50%);
   pointer-events: none;
+  transition: transform var(--transition-fast), background-color var(--transition-fast);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  z-index: 2;
+}
+
+.hoverTooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  background-color: #12141a;
+  border: 1px solid var(--border-hairline);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-primary);
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+
+/* Controls Row */
+.controlsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.leftGroup,
+.rightGroup,
+.centerGroup {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.controlBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+
+  &:hover {
+    background-color: var(--bg-card-hover);
+    color: var(--text-primary);
+  }
+
+  &.active {
+    color: var(--text-accent);
+    background-color: rgba(245, 158, 11, 0.12);
+  }
+}
+
+.playBtn {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-hairline);
+  color: var(--text-primary);
+  border-radius: var(--radius-full);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+
+  &:hover {
+    background-color: var(--bg-card-hover);
+    border-color: var(--border-subtle);
+    color: var(--text-accent);
+    transform: scale(1.04);
+  }
+
+  &.playing {
+    background-color: var(--text-accent);
+    border-color: var(--text-accent);
+    color: #0b0c10;
+
+    &:hover {
+      background-color: var(--text-accent-hover);
+      color: #000;
+    }
+  }
+}
+
+.timeDisplay {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+.trimSpanText {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-accent);
+  background-color: rgba(245, 158, 11, 0.08);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.trimBtn {
+  background-color: var(--text-accent);
+  border: none;
+  color: #000;
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+
+  &:hover {
+    background-color: var(--text-accent-hover);
+    transform: translateY(-1px);
+  }
+}
+
+.gifBtn {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-hairline);
+  color: var(--text-primary);
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+
+  &:hover {
+    background-color: var(--bg-card-hover);
+    border-color: var(--border-subtle);
+  }
+}
+
+.zoomIndicator {
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  min-width: 44px;
+  text-align: center;
+
+  &:hover {
+    color: var(--text-primary);
+  }
+}
+
+.divider {
+  width: 1px;
+  height: 16px;
+  background-color: var(--border-hairline);
+  margin: 0 4px;
 }

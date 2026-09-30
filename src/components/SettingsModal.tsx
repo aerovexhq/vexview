@@ -5,12 +5,20 @@ import {
   saveViewerConfig,
   exitApplication,
 } from '../lib/ipc';
+import { CustomSelect, SelectOption } from './common/CustomSelect';
+import { ToggleSwitch } from './common/ToggleSwitch';
 import styles from './SettingsModal.module.css';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+const ZOOM_OPTIONS: SelectOption<'FitToWindow' | 'OriginalSize' | 'Stretch'>[] = [
+  { value: 'FitToWindow', label: 'Fit to Window' },
+  { value: 'OriginalSize', label: '100% Original (1:1)' },
+  { value: 'Stretch', label: 'Fill Window' },
+];
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
@@ -81,14 +89,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Automatically start luxviewer in background on login
                 </span>
               </div>
-              <label className={styles.switch}>
-                <input
-                  type="checkbox"
-                  checked={config.autostart_at_boot}
-                  onChange={() => handleToggle('autostart_at_boot')}
-                />
-                <span className={styles.slider} />
-              </label>
+              <ToggleSwitch
+                checked={config.autostart_at_boot}
+                onChange={() => handleToggle('autostart_at_boot')}
+                ariaLabel="Launch at System Boot"
+              />
             </div>
 
             <div className={styles.settingRow}>
@@ -98,14 +103,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Keep running in background/tray when the window is closed
                 </span>
               </div>
-              <label className={styles.switch}>
-                <input
-                  type="checkbox"
-                  checked={config.keep_running_in_background}
-                  onChange={() => handleToggle('keep_running_in_background')}
-                />
-                <span className={styles.slider} />
-              </label>
+              <ToggleSwitch
+                checked={config.keep_running_in_background}
+                onChange={() => handleToggle('keep_running_in_background')}
+                ariaLabel="Never Fully Exit on Close"
+              />
             </div>
           </div>
 
@@ -120,14 +122,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Begin video playback immediately upon opening
                 </span>
               </div>
-              <label className={styles.switch}>
-                <input
-                  type="checkbox"
-                  checked={config.auto_play_videos}
-                  onChange={() => handleToggle('auto_play_videos')}
-                />
-                <span className={styles.slider} />
-              </label>
+              <ToggleSwitch
+                checked={config.auto_play_videos}
+                onChange={() => handleToggle('auto_play_videos')}
+                ariaLabel="Auto-play Videos"
+              />
             </div>
 
             <div className={styles.settingRow}>
@@ -137,14 +136,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Continuously loop videos when they reach the end
                 </span>
               </div>
-              <label className={styles.switch}>
-                <input
-                  type="checkbox"
-                  checked={config.loop_videos}
-                  onChange={() => handleToggle('loop_videos')}
-                />
-                <span className={styles.slider} />
-              </label>
+              <ToggleSwitch
+                checked={config.loop_videos}
+                onChange={() => handleToggle('loop_videos')}
+                ariaLabel="Loop Playback"
+              />
             </div>
           </div>
 
@@ -159,16 +155,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Initial sizing mode when media opens
                 </span>
               </div>
-              <select
-                className={styles.selectInput}
+              <CustomSelect<'FitToWindow' | 'OriginalSize' | 'Stretch'>
                 value={config.default_zoom_mode}
-                onChange={(e) =>
-                  handleChangeZoom(e.target.value as 'FitToWindow' | 'OriginalSize' | 'Stretch')
-                }
-              >
-                <option value="FitToWindow">Fit to Window</option>
-                <option value="OriginalSize">100% Original Size</option>
-              </select>
+                options={ZOOM_OPTIONS}
+                onChange={handleChangeZoom}
+                ariaLabel="Default Zoom Mode"
+              />
             </div>
 
             <div className={styles.settingRow}>
@@ -178,14 +170,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Display the bottom thumbnail carousel
                 </span>
               </div>
-              <label className={styles.switch}>
-                <input
-                  type="checkbox"
-                  checked={config.show_filmstrip}
-                  onChange={() => handleToggle('show_filmstrip')}
-                />
-                <span className={styles.slider} />
-              </label>
+              <ToggleSwitch
+                checked={config.show_filmstrip}
+                onChange={() => handleToggle('show_filmstrip')}
+                ariaLabel="Show Filmstrip"
+              />
             </div>
           </div>
         </div>

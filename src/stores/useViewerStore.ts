@@ -41,6 +41,7 @@ interface ViewerStore {
   isPlaying: boolean;
   currentTime: number;
   duration: number;
+  seekTime: number | null;
   trimRange: [number, number]; // [startSec, endSec]
 
   // Image editing
@@ -60,6 +61,8 @@ interface ViewerStore {
   toggleInspector: () => void;
   setIsPlaying: (playing: boolean) => void;
   setCurrentTime: (time: number) => void;
+  setDuration: (duration: number) => void;
+  seekTo: (time: number) => void;
   setTrimRange: (range: [number, number]) => void;
   updateEditor: (partial: Partial<EditorState>) => void;
   resetEditor: () => void;
@@ -96,6 +99,7 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
   isPlaying: false,
   currentTime: 0,
   duration: 0,
+  seekTime: null,
   trimRange: [0, 0],
 
   editor: initialEditorState,
@@ -127,6 +131,7 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
       editor: initialEditorState,
       isPlaying: false,
       currentTime: 0,
+      seekTime: null,
     });
 
     try {
@@ -178,6 +183,8 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
 
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setCurrentTime: (currentTime) => set({ currentTime }),
+  setDuration: (duration) => set({ duration }),
+  seekTo: (seekTime) => set({ seekTime, currentTime: seekTime }),
   setTrimRange: (trimRange) => set({ trimRange }),
 
   updateEditor: (partial) =>

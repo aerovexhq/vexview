@@ -1,0 +1,108 @@
+.container {
+  position: relative;
+  display: inline-block;
+  user-select: none;
+}
+
+.trigger {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-hairline);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 140px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  outline: none;
+
+  &:hover {
+    background-color: var(--bg-card-hover);
+    border-color: var(--border-subtle);
+  }
+
+  &:focus-visible,
+  &.open {
+    border-color: var(--text-accent);
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.18);
+  }
+}
+
+.chevron {
+  color: var(--text-muted);
+  transition: transform var(--transition-fast);
+  flex-shrink: 0;
+
+  &.rotated {
+    transform: rotate(180deg);
+  }
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 100%;
+  width: max-content;
+  max-width: 220px;
+  background-color: #12141a;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 1px rgba(255, 255, 255, 0.1);
+  padding: 4px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: fadeIn 120ms var(--ease-out-expo);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.option {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 11px;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  outline: none;
+
+  &:hover,
+  &:focus-visible {
+    background-color: var(--bg-card-hover);
+    color: var(--text-primary);
+  }
+
+  &.selected {
+    color: var(--text-accent);
+    background-color: rgba(245, 158, 11, 0.08);
+    font-weight: 600;
+  }
+}
+
+.checkIcon {
+  color: var(--text-accent);
+  flex-shrink: 0;
+}

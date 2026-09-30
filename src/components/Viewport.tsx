@@ -17,6 +17,8 @@ export const Viewport: React.FC = () => {
     updateEditor,
     isPlaying,
     setCurrentTime,
+    setDuration,
+    seekTime,
     openMediaFile,
     openMediaFolder,
   } = useViewerStore();
@@ -195,6 +197,13 @@ export const Viewport: React.FC = () => {
     }
   }, [isPlaying]);
 
+  // Handle seeking from timeline
+  useEffect(() => {
+    if (seekTime !== null && videoRef.current) {
+      videoRef.current.currentTime = seekTime;
+    }
+  }, [seekTime]);
+
   if (!current) {
     return (
       <div className={styles.viewport}>
@@ -285,6 +294,10 @@ export const Viewport: React.FC = () => {
             ref={videoRef}
             src={current.path}
             className={styles.videoElement}
+            onLoadedMetadata={(e) => {
+              const d = (e.target as HTMLVideoElement).duration;
+              if (d > 0) setDuration(d);
+            }}
             onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
             loop
             playsInline

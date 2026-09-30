@@ -1,0 +1,23 @@
+[package]
+name = "luxviewer-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { workspace = true }
+serde_json = { workspace = true }
+lux-core = { workspace = true }
+lux-image = { workspace = true }
+lux-video = { workspace = true }
+lux-edit = { workspace = true }
+image = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+base64 = "0.22"

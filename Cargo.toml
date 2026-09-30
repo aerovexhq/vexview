@@ -5,6 +5,7 @@ members = [
     "crates/lux-video",
     "crates/lux-edit",
     "crates/lux-gui",
+    "src-tauri",
 ]
 resolver = "2"
 

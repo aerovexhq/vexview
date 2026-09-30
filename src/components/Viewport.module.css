@@ -1,0 +1,122 @@
+.viewport {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-canvas);
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+.canvasContainer {
+  position: absolute;
+  transform-origin: center center;
+  transition: transform 60ms linear;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.imageElement {
+  max-width: none;
+  display: block;
+  pointer-events: none;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+}
+
+.videoElement {
+  max-width: 90vw;
+  max-height: 80vh;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+  border-radius: var(--radius-sm);
+  outline: none;
+}
+
+/* Split Comparison View for Editing */
+.splitContainer {
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+}
+
+.splitOriginal {
+  display: block;
+  pointer-events: none;
+}
+
+.splitEdited {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.splitHandle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: var(--text-accent);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.8);
+  cursor: ew-resize;
+  pointer-events: auto;
+  z-index: 10;
+
+  .handleGrip {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: var(--bg-card);
+    border: 2px solid var(--text-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-accent);
+    font-size: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  }
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--text-muted);
+  user-select: none;
+
+  .emptyIcon {
+    opacity: 0.3;
+  }
+
+  .openFolderBtn {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+
+    &:hover {
+      background-color: var(--bg-card-hover);
+      border-color: var(--border-active);
+      color: var(--text-accent);
+    }
+  }
+}

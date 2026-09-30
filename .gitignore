@@ -1,5 +1,7 @@
 /target
 **/*.rs.bk
+node_modules/
+dist/
 
 # IDE & Editor files
 .idea/

@@ -12,18 +12,25 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "luxviewer",
+        "url": "index.html",
         "width": 1280,
         "height": 820,
         "minWidth": 720,
         "minHeight": 480,
         "resizable": true,
         "fullscreen": false,
-        "decorations": true
+        "decorations": true,
+        "devtools": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
     }
   }
 }

@@ -39,8 +39,14 @@ export interface TransformParams {
   brightness: number;
   contrast: number;
   blur: number;
+  saturation?: number;
+  warmth?: number;
+  filter?: 'none' | 'grayscale' | 'invert' | 'sepia';
   destination?: string;
   format?: string;
+  quality?: number;
+  save?: boolean;
+  overwrite?: boolean;
 }
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -118,16 +124,20 @@ export async function applyTransforms(req: TransformParams): Promise<string> {
 
 export async function trimVideo(
   input: string,
-  output: string,
-  startSec: number,
-  endSec: number,
-): Promise<void> {
-  if (!isTauri) return;
-  return await invoke<void>('trim_video_clip', {
+  output?: string | null,
+  startSec = 0,
+  endSec = 0,
+  quality?: 'original' | 'high' | 'medium' | 'small',
+  overwrite?: boolean,
+): Promise<string> {
+  if (!isTauri) return output || input;
+  return await invoke<string>('trim_video_clip', {
     input,
-    output,
+    output: output || null,
     startSec,
     endSec,
+    quality: quality || null,
+    overwrite: overwrite || false,
   });
 }
 
@@ -221,6 +231,7 @@ export interface ComposeRequest {
   clips: SequenceClipInput[];
   audio_track?: AudioTrackInput | null;
   destination: string;
+  quality?: 'original' | 'high' | 'medium' | 'small';
 }
 
 export async function pickAudioFile(): Promise<string | null> {
@@ -231,4 +242,46 @@ export async function pickAudioFile(): Promise<string | null> {
 export async function composeVideoSequence(req: ComposeRequest): Promise<string> {
   if (!isTauri) return req.destination;
   return await invoke<string>('compose_video_sequence', { req });
+}
+
+export async function convertMediaFile(
+  inputPath: string,
+  outputPath: string,
+  format?: string,
+  width?: number,
+  height?: number,
+  quality?: number,
+): Promise<string> {
+  if (!isTauri) return outputPath;
+  return await invoke<string>('convert_media_file', {
+    inputPath,
+    outputPath,
+    format,
+    width,
+    height,
+    quality,
+  });
+}
+
+export async function saveFileDialog(
+  defaultName: string,
+  filterName: string,
+  extensions: string[],
+): Promise<string | null> {
+  if (!isTauri) return null;
+  return await invoke<string | null>('save_file_dialog', {
+    defaultName,
+    filterName,
+    extensions,
+  });
+}
+
+export async function setDefaultMediaViewer(): Promise<void> {
+  if (!isTauri) return;
+  return await invoke<void>('set_default_media_viewer');
+}
+
+export async function getCliTarget(): Promise<string | null> {
+  if (!isTauri) return null;
+  return await invoke<string | null>('get_cli_target');
 }

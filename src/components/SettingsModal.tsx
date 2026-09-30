@@ -4,6 +4,7 @@ import {
   getViewerConfig,
   saveViewerConfig,
   exitApplication,
+  setDefaultMediaViewer,
 } from '../lib/ipc';
 import { CustomSelect, SelectOption } from './common/CustomSelect';
 import { ToggleSwitch } from './common/ToggleSwitch';
@@ -36,6 +37,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     autostart_at_boot: true,
     keep_running_in_background: true,
   });
+
+  const [associated, setAssociated] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -78,36 +81,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         <div className={styles.body}>
-          {/* Autostart & Lifecycle */}
+          {/* System & File Associations */}
           <div className={styles.section}>
-            <div className={styles.sectionLabel}>Startup & System</div>
+            <div className={styles.sectionLabel}>System & File Associations</div>
 
             <div className={styles.settingRow}>
               <div className={styles.settingInfo}>
-                <span className={styles.settingName}>Launch at System Boot</span>
+                <span className={styles.settingName}>Default System Media Viewer</span>
                 <span className={styles.settingDesc}>
-                  Automatically start luxviewer in background on login
+                  Register luxviewer as default application for all images and videos
                 </span>
               </div>
-              <ToggleSwitch
-                checked={config.autostart_at_boot}
-                onChange={() => handleToggle('autostart_at_boot')}
-                ariaLabel="Launch at System Boot"
-              />
-            </div>
-
-            <div className={styles.settingRow}>
-              <div className={styles.settingInfo}>
-                <span className={styles.settingName}>Never Fully Exit on Close</span>
-                <span className={styles.settingDesc}>
-                  Keep running in background/tray when the window is closed
-                </span>
-              </div>
-              <ToggleSwitch
-                checked={config.keep_running_in_background}
-                onChange={() => handleToggle('keep_running_in_background')}
-                ariaLabel="Never Fully Exit on Close"
-              />
+              <button
+                style={{
+                  background: associated ? '#10b981' : 'rgba(255, 255, 255, 0.08)',
+                  color: associated ? '#042f2e' : '#f1f5f9',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '8px',
+                  padding: '6px 12px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  flexShrink: 0,
+                }}
+                onClick={async () => {
+                  await setDefaultMediaViewer();
+                  setAssociated(true);
+                  setTimeout(() => setAssociated(false), 3000);
+                }}
+              >
+                {associated ? '✓ Associated as Default' : 'Set as Default Viewer'}
+              </button>
             </div>
           </div>
 

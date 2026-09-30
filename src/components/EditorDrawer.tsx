@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { useViewerStore } from '../stores/useViewerStore';
+import { useViewerStore, EditorState } from '../stores/useViewerStore';
 import {
   applyTransforms,
   pickAudioFile,
   composeVideoSequence,
+  saveFileDialog,
   ComposeRequest,
 } from '../lib/ipc';
 import { CustomSelect, SelectOption } from './common/CustomSelect';
@@ -12,6 +13,21 @@ import styles from './EditorDrawer.module.css';
 const AUDIO_MODE_OPTIONS: SelectOption<'mix' | 'replace'>[] = [
   { value: 'mix', label: 'Mix with Video Audio' },
   { value: 'replace', label: 'Replace Video Audio' },
+];
+
+const FORMAT_OPTIONS: SelectOption<EditorState['exportFormat']>[] = [
+  { value: 'same', label: 'Same as Original' },
+  { value: 'png', label: 'PNG (Lossless)' },
+  { value: 'jpg', label: 'JPEG' },
+  { value: 'webp', label: 'WebP (Modern Compact)' },
+  { value: 'bmp', label: 'BMP (Bitmap)' },
+  { value: 'tiff', label: 'TIFF' },
+];
+
+const SEQUENCE_QUALITY_OPTIONS: SelectOption<'high' | 'medium' | 'small'>[] = [
+  { value: 'high', label: 'High Fidelity (CRF 18 / 256k)' },
+  { value: 'medium', label: 'Balanced (CRF 22 / 192k)' },
+  { value: 'small', label: 'Small File / Fast Web (CRF 28 / 128k)' },
 ];
 
 export const EditorDrawer: React.FC = () => {
@@ -40,14 +56,17 @@ export const EditorDrawer: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'image' | 'sequence'>(
     isVideo ? 'sequence' : 'image'
   );
+  const [sequenceQuality, setSequenceQuality] = useState<'high' | 'medium' | 'small'>('medium');
   const [isRendering, setIsRendering] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   if (activeMode !== 'edit' || !current) return null;
 
-  const handleSaveImage = async () => {
+  const handleSaveImage = async (customPath?: string) => {
+    setIsSaving(true);
     try {
-      const destination = current.path.replace(/(\.[^.]+)$/, '_edited$1');
-      await applyTransforms({
+      const format = editor.exportFormat === 'same' ? undefined : editor.exportFormat;
+      const res = await applyTransforms({
         path: current.path,
         rotation: editor.rotation,
         flip_h: editor.flipH,
@@ -55,11 +74,40 @@ export const EditorDrawer: React.FC = () => {
         brightness: editor.brightness,
         contrast: editor.contrast,
         blur: editor.blur,
-        destination,
+        saturation: editor.saturation,
+        warmth: editor.warmth,
+        filter: editor.filter === 'none' ? undefined : editor.filter,
+        format,
+        quality: editor.quality,
+        save: true,
+        overwrite: !customPath && editor.overwrite,
+        destination: customPath,
       });
-      alert(`Exported image copy successfully:\n${destination}`);
+
+      if (editor.overwrite && !customPath) {
+        alert(`Successfully overwritten original file:\n${res}`);
+      } else {
+        alert(`Saved copy next to original:\n${res}`);
+      }
     } catch (e) {
       alert(`Image export error: ${e}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveAsImage = async () => {
+    try {
+      const ext =
+        editor.exportFormat === 'same'
+          ? current.path.split('.').pop() || 'png'
+          : editor.exportFormat;
+      const baseName = current.file_name.replace(/\.[^.]+$/, `_edited.${ext}`);
+      const picked = await saveFileDialog(baseName, `${ext.toUpperCase()} File`, [ext]);
+      if (!picked) return;
+      await handleSaveImage(picked);
+    } catch (e) {
+      alert(`Save As error: ${e}`);
     }
   };
 
@@ -105,6 +153,7 @@ export const EditorDrawer: React.FC = () => {
             }
           : null,
         destination,
+        quality: sequenceQuality,
       };
 
       await composeVideoSequence(req);
@@ -141,7 +190,7 @@ export const EditorDrawer: React.FC = () => {
           className={`${styles.tabBtn} ${activeTab === 'image' ? styles.tabActive : ''}`}
           onClick={() => setActiveTab('image')}
         >
-          🎨 Image Tone
+          🎨 Image Studio
         </button>
         <button
           className={`${styles.tabBtn} ${activeTab === 'sequence' ? styles.tabActive : ''}`}
@@ -155,6 +204,38 @@ export const EditorDrawer: React.FC = () => {
         {activeTab === 'image' ? (
           /* TAB 1: IMAGE STUDIO */
           <>
+            {/* Quick Filters */}
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>Presets & Filters</div>
+              <div className={styles.filterGrid}>
+                <button
+                  className={`${styles.filterBtn} ${editor.filter === 'none' ? styles.active : ''}`}
+                  onClick={() => updateEditor({ filter: 'none' })}
+                >
+                  Original
+                </button>
+                <button
+                  className={`${styles.filterBtn} ${editor.filter === 'grayscale' ? styles.active : ''}`}
+                  onClick={() => updateEditor({ filter: 'grayscale' })}
+                >
+                  B&W
+                </button>
+                <button
+                  className={`${styles.filterBtn} ${editor.filter === 'sepia' ? styles.active : ''}`}
+                  onClick={() => updateEditor({ filter: 'sepia' })}
+                >
+                  Sepia
+                </button>
+                <button
+                  className={`${styles.filterBtn} ${editor.filter === 'invert' ? styles.active : ''}`}
+                  onClick={() => updateEditor({ filter: 'invert' })}
+                >
+                  Invert
+                </button>
+              </div>
+            </div>
+
+            {/* Geometry & Orientation */}
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Orientation</div>
               <div className={styles.btnGroup}>
@@ -189,12 +270,14 @@ export const EditorDrawer: React.FC = () => {
               </div>
             </div>
 
+            {/* Tone & Light Adjustments */}
             <div className={styles.section}>
-              <div className={styles.sectionTitle}>Tone & Contrast</div>
+              <div className={styles.sectionTitle}>Color & Light</div>
 
+              {/* Exposure */}
               <div className={styles.sliderRow}>
                 <div className={styles.sliderHeader}>
-                  <span>Exposure</span>
+                  <span>Exposure / Brightness</span>
                   <span className={`${styles.sliderValue} tabular-nums`}>
                     {editor.brightness > 0 ? `+${editor.brightness}` : editor.brightness}
                   </span>
@@ -209,6 +292,7 @@ export const EditorDrawer: React.FC = () => {
                 />
               </div>
 
+              {/* Contrast */}
               <div className={styles.sliderRow}>
                 <div className={styles.sliderHeader}>
                   <span>Contrast</span>
@@ -226,6 +310,43 @@ export const EditorDrawer: React.FC = () => {
                 />
               </div>
 
+              {/* Saturation */}
+              <div className={styles.sliderRow}>
+                <div className={styles.sliderHeader}>
+                  <span>Saturation</span>
+                  <span className={`${styles.sliderValue} tabular-nums`}>
+                    {editor.saturation > 0 ? `+${editor.saturation}` : editor.saturation}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="-100"
+                  max="100"
+                  value={editor.saturation}
+                  onChange={(e) => updateEditor({ saturation: parseInt(e.target.value, 10) })}
+                  className={styles.rangeInput}
+                />
+              </div>
+
+              {/* Warmth / Color Temperature */}
+              <div className={styles.sliderRow}>
+                <div className={styles.sliderHeader}>
+                  <span>Warmth / Temp</span>
+                  <span className={`${styles.sliderValue} tabular-nums`}>
+                    {editor.warmth > 0 ? `+${editor.warmth}` : editor.warmth}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="-100"
+                  max="100"
+                  value={editor.warmth}
+                  onChange={(e) => updateEditor({ warmth: parseInt(e.target.value, 10) })}
+                  className={styles.rangeInput}
+                />
+              </div>
+
+              {/* Blur & Soften */}
               <div className={styles.sliderRow}>
                 <div className={styles.sliderHeader}>
                   <span>Blur & Soften</span>
@@ -242,6 +363,89 @@ export const EditorDrawer: React.FC = () => {
                   onChange={(e) => updateEditor({ blur: parseFloat(e.target.value) })}
                   className={styles.rangeInput}
                 />
+              </div>
+            </div>
+
+            {/* Export Format & Compression */}
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>Export & Quality</div>
+
+              <div className={styles.sliderRow}>
+                <div className={styles.sliderHeader}>
+                  <span>Target Format</span>
+                </div>
+                <CustomSelect<EditorState['exportFormat']>
+                  value={editor.exportFormat}
+                  options={FORMAT_OPTIONS}
+                  onChange={(fmt) => updateEditor({ exportFormat: fmt })}
+                  ariaLabel="Image format"
+                />
+              </div>
+
+              {/* Compression / Quality */}
+              <div className={styles.sliderRow}>
+                <div className={styles.sliderHeader}>
+                  <span>Quality / Compression</span>
+                  <span className={`${styles.sliderValue} tabular-nums`}>
+                    {editor.quality}% {editor.quality >= 95 ? '(Lossless / Original)' : editor.quality >= 85 ? '(High)' : editor.quality >= 70 ? '(Balanced)' : '(Small Size)'}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="10"
+                  max="100"
+                  value={editor.quality}
+                  onChange={(e) => updateEditor({ quality: parseInt(e.target.value, 10) })}
+                  className={styles.rangeInput}
+                />
+                <div className={styles.qualityPresetGroup}>
+                  <button
+                    className={`${styles.qualityPresetBtn} ${editor.quality === 100 ? styles.qualityActive : ''}`}
+                    onClick={() => updateEditor({ quality: 100 })}
+                  >
+                    100% Orig
+                  </button>
+                  <button
+                    className={`${styles.qualityPresetBtn} ${editor.quality === 90 ? styles.qualityActive : ''}`}
+                    onClick={() => updateEditor({ quality: 90 })}
+                  >
+                    90% High
+                  </button>
+                  <button
+                    className={`${styles.qualityPresetBtn} ${editor.quality === 75 ? styles.qualityActive : ''}`}
+                    onClick={() => updateEditor({ quality: 75 })}
+                  >
+                    75% Balanced
+                  </button>
+                  <button
+                    className={`${styles.qualityPresetBtn} ${editor.quality === 50 ? styles.qualityActive : ''}`}
+                    onClick={() => updateEditor({ quality: 50 })}
+                  >
+                    50% Compact
+                  </button>
+                </div>
+              </div>
+
+              {/* Overwrite or Save Next To Original */}
+              <div className={styles.checkboxContainer}>
+                <label className={styles.checkboxRow}>
+                  <input
+                    type="checkbox"
+                    checked={editor.overwrite}
+                    onChange={(e) => updateEditor({ overwrite: e.target.checked })}
+                    className={styles.checkboxInput}
+                  />
+                  <span>Overwrite original file</span>
+                </label>
+                <div className={styles.checkboxDesc}>
+                  {editor.overwrite ? (
+                    <div className={styles.warningNotice}>
+                      ⚠️ Warning: Saving will replace the original file on disk.
+                    </div>
+                  ) : (
+                    <span>Default: Saves a copy next to the original file (e.g. <code>_edited</code>) without modifying the source.</span>
+                  )}
+                </div>
               </div>
             </div>
           </>
@@ -389,6 +593,17 @@ export const EditorDrawer: React.FC = () => {
               )}
             </div>
 
+            {/* Sequence Quality & Compression */}
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>Render Quality</div>
+              <CustomSelect<'high' | 'medium' | 'small'>
+                value={sequenceQuality}
+                options={SEQUENCE_QUALITY_OPTIONS}
+                onChange={(q) => setSequenceQuality(q)}
+                ariaLabel="Sequence render quality"
+              />
+            </div>
+
             {/* Render Composition Button */}
             <div className={styles.section}>
               <button
@@ -403,7 +618,7 @@ export const EditorDrawer: React.FC = () => {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <polygon points="5 3 19 12 5 21 5 3" />
                     </svg>
-                    Render & Export Video
+                    Render & Export Sequence
                   </>
                 )}
               </button>
@@ -415,11 +630,27 @@ export const EditorDrawer: React.FC = () => {
       <div className={styles.footer}>
         {activeTab === 'image' ? (
           <>
-            <button className={styles.revertBtn} onClick={resetEditor}>
-              Revert
+            <button className={styles.revertBtn} onClick={resetEditor} title="Reset all adjustments">
+              Reset
             </button>
-            <button className={styles.saveBtn} onClick={handleSaveImage}>
-              Export Copy
+            <button className={styles.saveAsBtn} onClick={handleSaveAsImage} title="Choose destination folder and name">
+              Save As...
+            </button>
+            <button
+              className={styles.saveBtn}
+              onClick={() => handleSaveImage()}
+              disabled={isSaving}
+              style={
+                editor.overwrite
+                  ? { backgroundColor: '#ef4444', color: '#ffffff' }
+                  : undefined
+              }
+            >
+              {isSaving
+                ? 'Saving...'
+                : editor.overwrite
+                ? 'Overwrite File'
+                : 'Save Copy'}
             </button>
           </>
         ) : (
@@ -429,7 +660,7 @@ export const EditorDrawer: React.FC = () => {
               onClick={clearSequence}
               disabled={sequence.length === 0}
             >
-              Clear Timeline
+              Clear
             </button>
             <button
               className={styles.saveBtn}

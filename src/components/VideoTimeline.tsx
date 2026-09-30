@@ -34,6 +34,9 @@ export const VideoTimeline: React.FC = () => {
   const [visible, setVisible] = useState(true);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverPosPercent, setHoverPosPercent] = useState<number>(0);
+  const [trimQuality, setTrimQuality] = useState<'original' | 'high' | 'medium' | 'small'>('original');
+  const [trimOverwrite, setTrimOverwrite] = useState(false);
+  const [isTrimming, setIsTrimming] = useState(false);
 
   const current = items[currentIndex];
 
@@ -129,14 +132,27 @@ export const VideoTimeline: React.FC = () => {
     }
   };
 
-  const handleLosslessTrim = async () => {
+  const handleTrimVideo = async () => {
     const [start, end] = trimRange;
-    const dest = current.path.replace(/(\.[^.]+)$/, `_trimmed${formatTime(start).replace(':', '_')}$1`);
+    setIsTrimming(true);
     try {
-      await trimVideo(current.path, dest, start, end);
-      alert(`Lossless video cut saved successfully:\n${dest}`);
+      const saved = await trimVideo(
+        current.path,
+        null,
+        start,
+        end,
+        trimQuality,
+        trimOverwrite,
+      );
+      if (trimOverwrite) {
+        alert(`Successfully overwritten original video:\n${saved}`);
+      } else {
+        alert(`Trimmed video saved next to original:\n${saved}`);
+      }
     } catch (e) {
       alert(`Trim error: ${e}`);
+    } finally {
+      setIsTrimming(false);
     }
   };
 
@@ -251,6 +267,34 @@ export const VideoTimeline: React.FC = () => {
               In: {formatTime(trimRange[0])} → Out: {formatTime(trimRange[1])} (
               {(trimRange[1] - trimRange[0]).toFixed(2)}s)
             </div>
+
+            <div className={styles.trimOptionsRow}>
+              <select
+                className={styles.qualityBadgeSelect}
+                value={trimQuality}
+                onChange={(e) => setTrimQuality(e.target.value as any)}
+                title="Select compression or original quality"
+              >
+                <option value="original">Original (Stream Copy)</option>
+                <option value="high">High Quality (CRF 18)</option>
+                <option value="medium">Balanced (CRF 24)</option>
+                <option value="small">Small Size (CRF 30)</option>
+              </select>
+
+              <label
+                className={`${styles.overwriteLabel} ${trimOverwrite ? styles.warning : ''}`}
+                title={trimOverwrite ? '⚠️ Will replace original video file on disk' : 'Saves next to original'}
+              >
+                <input
+                  type="checkbox"
+                  checked={trimOverwrite}
+                  onChange={(e) => setTrimOverwrite(e.target.checked)}
+                  className={styles.overwriteCheckbox}
+                />
+                Overwrite
+              </label>
+            </div>
+
             <button
               className={styles.gifBtn}
               onClick={addCurrentToSequence}
@@ -261,7 +305,12 @@ export const VideoTimeline: React.FC = () => {
             <button className={styles.gifBtn} onClick={handleGifExport} title="Export selected clip as GIF">
               GIF
             </button>
-            <button className={styles.trimBtn} onClick={handleLosslessTrim} title="Lossless Cut without re-encoding">
+            <button
+              className={`${styles.trimBtn} ${trimOverwrite ? styles.overwrite : ''}`}
+              onClick={handleTrimVideo}
+              disabled={isTrimming}
+              title={trimOverwrite ? '⚠️ Overwrites original video' : 'Cuts and saves a copy next to original'}
+            >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <circle cx="6" cy="6" r="3" />
                 <circle cx="6" cy="18" r="3" />
@@ -269,7 +318,7 @@ export const VideoTimeline: React.FC = () => {
                 <line x1="14.47" y1="14.48" x2="20" y2="20" />
                 <line x1="8.12" y1="8.12" x2="12" y2="12" />
               </svg>
-              Cut
+              {isTrimming ? 'Processing...' : trimOverwrite ? 'Overwrite' : 'Cut'}
             </button>
           </div>
         )}

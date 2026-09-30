@@ -38,6 +38,58 @@ pub fn sharpen(img: &DynamicImage, sigma: f32, threshold: i32) -> DynamicImage {
     img.unsharpen(sigma, threshold)
 }
 
+/// Adjusts saturation (-100.0 to 100.0, where 0.0 is unchanged).
+pub fn adjust_saturation(img: &DynamicImage, value: f32) -> DynamicImage {
+    if value.abs() < 0.01 {
+        return img.clone();
+    }
+    let factor = (1.0 + value / 100.0).max(0.0);
+    let mut rgba = img.to_rgba8();
+    for pixel in rgba.pixels_mut() {
+        let r = pixel[0] as f32;
+        let g = pixel[1] as f32;
+        let b = pixel[2] as f32;
+        let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        pixel[0] = (gray + (r - gray) * factor).clamp(0.0, 255.0) as u8;
+        pixel[1] = (gray + (g - gray) * factor).clamp(0.0, 255.0) as u8;
+        pixel[2] = (gray + (b - gray) * factor).clamp(0.0, 255.0) as u8;
+    }
+    DynamicImage::ImageRgba8(rgba)
+}
+
+/// Adjusts color warmth / temperature (-100.0 to 100.0).
+pub fn adjust_warmth(img: &DynamicImage, value: f32) -> DynamicImage {
+    if value.abs() < 0.01 {
+        return img.clone();
+    }
+    let shift = value * 0.5;
+    let mut rgba = img.to_rgba8();
+    for pixel in rgba.pixels_mut() {
+        let r = pixel[0] as f32 + shift;
+        let b = pixel[2] as f32 - shift;
+        pixel[0] = r.clamp(0.0, 255.0) as u8;
+        pixel[2] = b.clamp(0.0, 255.0) as u8;
+    }
+    DynamicImage::ImageRgba8(rgba)
+}
+
+/// Applies classic vintage sepia tone.
+pub fn sepia(img: &DynamicImage) -> DynamicImage {
+    let mut rgba = img.to_rgba8();
+    for pixel in rgba.pixels_mut() {
+        let r = pixel[0] as f32;
+        let g = pixel[1] as f32;
+        let b = pixel[2] as f32;
+        let tr = 0.393 * r + 0.769 * g + 0.189 * b;
+        let tg = 0.349 * r + 0.686 * g + 0.168 * b;
+        let tb = 0.272 * r + 0.534 * g + 0.131 * b;
+        pixel[0] = tr.min(255.0) as u8;
+        pixel[1] = tg.min(255.0) as u8;
+        pixel[2] = tb.min(255.0) as u8;
+    }
+    DynamicImage::ImageRgba8(rgba)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

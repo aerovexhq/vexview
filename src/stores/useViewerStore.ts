@@ -10,13 +10,19 @@ import {
   openFolderDialog,
 } from '../lib/ipc';
 
-interface EditorState {
+export interface EditorState {
   rotation: number;
   flipH: boolean;
   flipV: boolean;
   brightness: number;
   contrast: number;
   blur: number;
+  saturation: number;
+  warmth: number;
+  filter: 'none' | 'grayscale' | 'invert' | 'sepia';
+  quality: number;
+  exportFormat: 'same' | 'png' | 'jpg' | 'webp' | 'bmp' | 'tiff';
+  overwrite: boolean;
   splitPosition: number; // 0 to 100% for before/after comparison
   previewUrl: string | null;
 }
@@ -88,6 +94,7 @@ interface ViewerStore {
   updateEditor: (partial: Partial<EditorState>) => void;
   resetEditor: () => void;
   openMediaFile: () => Promise<void>;
+  openTargetFile: (filePath: string) => Promise<void>;
   openMediaFolder: () => Promise<void>;
 
   // Sequence Actions
@@ -107,6 +114,12 @@ const initialEditorState: EditorState = {
   brightness: 0,
   contrast: 0,
   blur: 0,
+  saturation: 0,
+  warmth: 0,
+  filter: 'none',
+  quality: 90,
+  exportFormat: 'same',
+  overwrite: false,
   splitPosition: 50,
   previewUrl: null,
 };
@@ -223,17 +236,47 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
     set((s) => ({ editor: { ...s.editor, ...partial } })),
   resetEditor: () => set({ editor: initialEditorState }),
 
+  openTargetFile: async (filePath: string) => {
+    try {
+      const cleanPath = filePath.replace(/^file:\/\//, '');
+      const parentDir = cleanPath.substring(0, cleanPath.lastIndexOf('/')) || '.';
+      set({ loading: true, error: null, folderPath: parentDir });
+
+      let items: MediaItem[] = [];
+      try {
+        items = await scanFolder(parentDir);
+      } catch {
+        items = [];
+      }
+
+      let targetIdx = items.findIndex((it) => it.path === cleanPath || it.path === filePath);
+      if (targetIdx === -1) {
+        const fileName = cleanPath.split('/').pop() || 'media';
+        const ext = fileName.split('.').pop()?.toLowerCase() || '';
+        const isVid = ['mp4', 'mkv', 'webm', 'mov', 'avi', 'flv', 'wmv'].includes(ext);
+        const isSvg = ext === 'svg' || ext === 'svgz';
+        const singleItem: MediaItem = {
+          path: cleanPath,
+          file_name: fileName,
+          media_type: isVid ? 'Video' : isSvg ? 'Svg' : 'Image',
+          file_size: 0,
+        };
+        items = [singleItem, ...items];
+        targetIdx = 0;
+      }
+
+      set({ items, currentIndex: targetIdx, loading: false });
+      await get().selectIndex(targetIdx);
+    } catch (e) {
+      set({ error: String(e), loading: false });
+    }
+  },
+
   openMediaFile: async () => {
     try {
       const selectedPath = await openFileDialog();
       if (!selectedPath) return;
-
-      const parentDir = selectedPath.substring(0, selectedPath.lastIndexOf('/')) || '.';
-      set({ loading: true, error: null, folderPath: parentDir });
-      const items = await scanFolder(parentDir);
-      const targetIdx = items.findIndex((it) => it.path === selectedPath);
-      set({ items, currentIndex: targetIdx >= 0 ? targetIdx : 0 });
-      await get().selectIndex(targetIdx >= 0 ? targetIdx : 0);
+      await get().openTargetFile(selectedPath);
     } catch (e) {
       set({ error: String(e), loading: false });
     }

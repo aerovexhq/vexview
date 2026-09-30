@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { useViewerStore } from '../stores/useViewerStore';
 import styles from './Viewport.module.css';
 
@@ -7,6 +8,8 @@ export const Viewport: React.FC = () => {
     items,
     currentIndex,
     imageDetail,
+    loading,
+    error,
     zoom,
     pan,
     setPan,
@@ -270,7 +273,27 @@ export const Viewport: React.FC = () => {
   }
 
   const isVideo = current.media_type === 'Video';
-  const displaySrc = editor.previewUrl || imageDetail?.data_url || '';
+  const assetUrl = convertFileSrc(current.path);
+  const displaySrc =
+    editor.previewUrl ||
+    (current.media_type === 'Svg' && imageDetail?.data_url ? imageDetail.data_url : (imageDetail?.data_url || assetUrl));
+
+  const getFilterStyle = () => {
+    let filterStr = `brightness(${100 + editor.brightness}%) contrast(${100 + editor.contrast}%) blur(${editor.blur}px) saturate(${100 + editor.saturation}%)`;
+    if (editor.filter === 'grayscale') {
+      filterStr += ' grayscale(100%)';
+    } else if (editor.filter === 'invert') {
+      filterStr += ' invert(100%)';
+    } else if (editor.filter === 'sepia') {
+      filterStr += ' sepia(85%)';
+    }
+    if (editor.warmth > 0) {
+      filterStr += ` sepia(${editor.warmth * 0.4}%)`;
+    } else if (editor.warmth < 0) {
+      filterStr += ` hue-rotate(${editor.warmth * 0.3}deg)`;
+    }
+    return filterStr;
+  };
 
   return (
     <div
@@ -282,6 +305,16 @@ export const Viewport: React.FC = () => {
       onPointerCancel={handlePointerUp}
       onDoubleClick={handleDoubleClick}
     >
+      {loading && !displaySrc && (
+        <div style={{ position: 'absolute', color: '#94a3b8', fontSize: '12px' }}>
+          Loading media...
+        </div>
+      )}
+      {error && !displaySrc && (
+        <div style={{ position: 'absolute', color: '#ef4444', fontSize: '13px', background: 'rgba(0,0,0,0.7)', padding: '8px 16px', borderRadius: '8px' }}>
+          Failed to load media: {error}
+        </div>
+      )}
       <div
         ref={canvasRef}
         className={styles.canvasContainer}
@@ -292,7 +325,7 @@ export const Viewport: React.FC = () => {
         {isVideo ? (
           <video
             ref={videoRef}
-            src={current.path}
+            src={assetUrl}
             className={styles.videoElement}
             onLoadedMetadata={(e) => {
               const d = (e.target as HTMLVideoElement).duration;
@@ -306,7 +339,7 @@ export const Viewport: React.FC = () => {
           /* Split comparison mode */
           <div className={styles.splitContainer}>
             <img
-              src={imageDetail?.data_url}
+              src={imageDetail?.data_url || assetUrl}
               alt="Original"
               className={styles.splitOriginal}
             />
@@ -319,7 +352,7 @@ export const Viewport: React.FC = () => {
                 alt="Edited"
                 style={{
                   transform: `rotate(${editor.rotation}deg) scaleX(${editor.flipH ? -1 : 1}) scaleY(${editor.flipV ? -1 : 1})`,
-                  filter: `brightness(${100 + editor.brightness}%) contrast(${100 + editor.contrast}%) blur(${editor.blur}px)`,
+                  filter: getFilterStyle(),
                 }}
               />
             </div>
@@ -341,7 +374,7 @@ export const Viewport: React.FC = () => {
             className={styles.imageElement}
             style={{
               transform: `rotate(${editor.rotation}deg) scaleX(${editor.flipH ? -1 : 1}) scaleY(${editor.flipV ? -1 : 1})`,
-              filter: `brightness(${100 + editor.brightness}%) contrast(${100 + editor.contrast}%) blur(${editor.blur}px)`,
+              filter: getFilterStyle(),
             }}
           />
         )}

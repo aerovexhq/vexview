@@ -207,6 +207,65 @@
     background-color: var(--text-accent-hover);
     transform: translateY(-1px);
   }
+
+  &.overwrite {
+    background-color: #ef4444;
+    color: #fff;
+
+    &:hover {
+      background-color: #dc2626;
+    }
+  }
+}
+
+.trimOptionsRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.qualityBadgeSelect {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-hairline);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  outline: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+
+  &:hover {
+    color: var(--text-primary);
+    border-color: var(--border-subtle);
+  }
+}
+
+.overwriteLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+
+  &:hover {
+    color: var(--text-secondary);
+  }
+
+  &.warning {
+    color: #f87171;
+  }
+}
+
+.overwriteCheckbox {
+  accent-color: #ef4444;
+  width: 12px;
+  height: 12px;
+  cursor: pointer;
 }
 
 .gifBtn {

@@ -35,8 +35,8 @@ impl Default for ViewerConfig {
             cache_capacity: 10,
             background_dark: true,
             show_filmstrip: true,
-            autostart_at_boot: true,
-            keep_running_in_background: true,
+            autostart_at_boot: false,
+            keep_running_in_background: false,
         }
     }
 }
@@ -81,8 +81,8 @@ mod tests {
     #[test]
     fn test_viewer_config_defaults_and_roundtrip() {
         let config = ViewerConfig::default();
-        assert!(config.autostart_at_boot);
-        assert!(config.keep_running_in_background);
+        assert!(!config.autostart_at_boot);
+        assert!(!config.keep_running_in_background);
         assert!(config.auto_play_videos);
         assert_eq!(config.default_zoom_mode, ZoomMode::FitToWindow);
 

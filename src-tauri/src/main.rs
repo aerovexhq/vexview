@@ -4,7 +4,6 @@
 use base64::prelude::*;
 use lux_core::{MediaItem, ScanFilter};
 use lux_edit::ExportFormat;
-use lux_image::LoadedImage;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 use std::path::Path;
@@ -30,8 +29,14 @@ pub struct TransformRequest {
     pub brightness: i32,
     pub contrast: f32,
     pub blur: f32,
+    pub saturation: Option<f32>,
+    pub warmth: Option<f32>,
+    pub filter: Option<String>,
     pub destination: Option<String>,
     pub format: Option<String>,
+    pub quality: Option<u8>,
+    pub save: Option<bool>,
+    pub overwrite: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -42,11 +47,65 @@ pub struct CropParams {
     pub height: u32,
 }
 
+fn clean_file_path(path: &str) -> String {
+    let mut p = path.trim();
+    if let Some(stripped) = p.strip_prefix("file://") {
+        p = stripped;
+    }
+    let mut result = Vec::new();
+    let bytes = p.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let Ok(val) = u8::from_str_radix(std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or(""), 16) {
+                result.push(val);
+                i += 3;
+                continue;
+            }
+        }
+        result.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8(result).unwrap_or_else(|_| p.to_string())
+}
+
+fn get_non_colliding_path(
+    original_path: &Path,
+    suffix: &str,
+    new_ext: Option<&str>,
+) -> std::path::PathBuf {
+    let parent = original_path.parent().unwrap_or_else(|| Path::new("."));
+    let stem = original_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("media");
+    let ext = new_ext
+        .or_else(|| original_path.extension().and_then(|e| e.to_str()))
+        .unwrap_or("png");
+
+    let base_name = format!("{}_{}.{}", stem, suffix, ext);
+    let mut candidate = parent.join(&base_name);
+    if !candidate.exists() {
+        return candidate;
+    }
+
+    let mut counter = 1;
+    loop {
+        let name = format!("{}_{}_{}.{}", stem, suffix, counter, ext);
+        candidate = parent.join(&name);
+        if !candidate.exists() {
+            return candidate;
+        }
+        counter += 1;
+    }
+}
+
 #[tauri::command]
 fn scan_folder(folder_path: String) -> Result<Vec<MediaItem>, String> {
-    let p = Path::new(&folder_path);
+    let clean = clean_file_path(&folder_path);
+    let p = Path::new(&clean);
     if !p.exists() {
-        return Err(format!("Path does not exist: {}", folder_path));
+        return Err(format!("Path does not exist: {}", clean));
     }
     let items = lux_core::scan_directory(p, ScanFilter::AllMedia);
     Ok(items)
@@ -54,17 +113,54 @@ fn scan_folder(folder_path: String) -> Result<Vec<MediaItem>, String> {
 
 #[tauri::command]
 fn load_image_detail(file_path: String) -> Result<ImageDetailResponse, String> {
-    let loaded: LoadedImage =
-        lux_image::load_image(&file_path).map_err(|e| format!("Failed to load image: {}", e))?;
+    let clean = clean_file_path(&file_path);
+    let path_ref = Path::new(&clean);
+    let ext = path_ref
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|s| s.to_lowercase())
+        .unwrap_or_default();
 
-    let mut buffer = Cursor::new(Vec::new());
-    loaded
-        .image
-        .write_to(&mut buffer, image::ImageFormat::Png)
-        .map_err(|e| format!("Failed to encode preview: {}", e))?;
+    if ext == "svg" || ext == "svgz" {
+        let loaded = lux_image::load_image(&clean)
+            .map_err(|e| format!("Failed to render SVG: {}", e))?;
+        let mut buffer = Cursor::new(Vec::new());
+        loaded
+            .image
+            .write_to(&mut buffer, image::ImageFormat::Png)
+            .map_err(|e| format!("Failed to encode rendered SVG: {}", e))?;
+        let b64 = BASE64_STANDARD.encode(buffer.into_inner());
+        let data_url = format!("data:image/png;base64,{}", b64);
+        return Ok(ImageDetailResponse {
+            width: loaded.metadata.width,
+            height: loaded.metadata.height,
+            orientation: 1,
+            make: None,
+            model: None,
+            date_time: None,
+            data_url,
+        });
+    }
 
-    let base64_str = BASE64_STANDARD.encode(buffer.into_inner());
-    let data_url = format!("data:image/png;base64,{}", base64_str);
+    // For raster images: extract metadata quickly without recompressing
+    let loaded = lux_image::load_image(&clean)
+        .map_err(|e| format!("Failed to load image: {}", e))?;
+
+    // Read original raw file bytes directly for instant <1ms base64 response
+    let raw_bytes = std::fs::read(&clean)
+        .map_err(|e| format!("Failed to read image file: {}", e))?;
+    let mime = match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "webp" => "image/webp",
+        "gif" => "image/gif",
+        "avif" => "image/avif",
+        "bmp" => "image/bmp",
+        "ico" => "image/x-icon",
+        "tif" | "tiff" => "image/tiff",
+        _ => "image/png",
+    };
+    let b64 = BASE64_STANDARD.encode(&raw_bytes);
+    let data_url = format!("data:{};base64,{}", mime, b64);
 
     Ok(ImageDetailResponse {
         width: loaded.metadata.width,
@@ -79,8 +175,9 @@ fn load_image_detail(file_path: String) -> Result<ImageDetailResponse, String> {
 
 #[tauri::command]
 fn get_thumbnail_base64(file_path: String, max_size: u32) -> Result<String, String> {
+    let clean = clean_file_path(&file_path);
     let loaded =
-        lux_image::load_image(&file_path).map_err(|e| format!("Failed to load image: {}", e))?;
+        lux_image::load_image(&clean).map_err(|e| format!("Failed to load image: {}", e))?;
     let thumb = lux_image::generate_thumbnail(&loaded.image, max_size, max_size)
         .map_err(|e| format!("Failed to resize thumbnail: {}", e))?;
 
@@ -95,14 +192,17 @@ fn get_thumbnail_base64(file_path: String, max_size: u32) -> Result<String, Stri
 
 #[tauri::command]
 fn probe_video(file_path: String) -> Result<lux_video::VideoMetadata, String> {
-    lux_video::probe_video(&file_path)
+    let clean = clean_file_path(&file_path);
+    lux_video::probe_video(&clean)
         .ok_or_else(|| "Failed to probe video streams with ffprobe".to_string())
 }
 
 #[tauri::command]
 fn apply_image_transforms(req: TransformRequest) -> Result<String, String> {
+    let clean = clean_file_path(&req.path);
+    let path_ref = Path::new(&clean);
     let loaded =
-        lux_image::load_image(&req.path).map_err(|e| format!("Failed to load image: {}", e))?;
+        lux_image::load_image(&clean).map_err(|e| format!("Failed to load image: {}", e))?;
     let mut current = loaded.image;
 
     // Apply rotation
@@ -130,18 +230,46 @@ fn apply_image_transforms(req: TransformRequest) -> Result<String, String> {
     if (req.contrast - 0.0).abs() > 0.01 {
         current = lux_edit::adjust_contrast(&current, req.contrast);
     }
+    if let Some(sat) = req.saturation {
+        if sat.abs() > 0.01 {
+            current = lux_edit::adjust_saturation(&current, sat);
+        }
+    }
+    if let Some(w) = req.warmth {
+        if w.abs() > 0.01 {
+            current = lux_edit::adjust_warmth(&current, w);
+        }
+    }
+    if let Some(ref filter_name) = req.filter {
+        match filter_name.as_str() {
+            "grayscale" => current = lux_edit::grayscale(&current),
+            "invert" => current = lux_edit::invert(&current),
+            "sepia" => current = lux_edit::sepia(&current),
+            _ => {}
+        }
+    }
     if req.blur > 0.0 {
         current = lux_edit::blur(&current, req.blur);
     }
 
-    // If destination provided, save to disk
-    if let Some(dest) = req.destination {
-        let fmt = match req.format.as_deref() {
-            Some("jpg") | Some("jpeg") => ExportFormat::Jpeg,
-            Some("webp") => ExportFormat::WebP,
-            _ => ExportFormat::Png,
+    let target_ext = req.format.as_deref().or_else(|| path_ref.extension().and_then(|e| e.to_str()));
+    let fmt = target_ext
+        .and_then(ExportFormat::from_ext_or_name)
+        .unwrap_or(ExportFormat::Png);
+
+    let is_save = req.save.unwrap_or(false) || req.destination.is_some() || req.overwrite.unwrap_or(false);
+
+    if is_save {
+        let dest = if let Some(d) = req.destination.filter(|s| !s.trim().is_empty()) {
+            clean_file_path(&d)
+        } else if req.overwrite.unwrap_or(false) {
+            clean.clone()
+        } else {
+            let next_to = get_non_colliding_path(path_ref, "edited", Some(fmt.extension()));
+            next_to.to_string_lossy().to_string()
         };
-        lux_edit::export_image(&current, &dest, fmt)
+
+        lux_edit::export_image(&current, &dest, fmt, req.quality)
             .map_err(|e| format!("Failed to export image: {}", e))?;
         return Ok(dest);
     }
@@ -158,12 +286,37 @@ fn apply_image_transforms(req: TransformRequest) -> Result<String, String> {
 #[tauri::command]
 fn trim_video_clip(
     input: String,
-    output: String,
+    output: Option<String>,
     start_sec: f64,
     end_sec: f64,
-) -> Result<(), String> {
-    lux_video::trim_video_lossless(&input, &output, start_sec, end_sec)
-        .map_err(|e| format!("Lossless trim failed: {}", e))
+    quality: Option<String>,
+    overwrite: Option<bool>,
+) -> Result<String, String> {
+    let clean_in = clean_file_path(&input);
+    let in_path = Path::new(&clean_in);
+
+    let is_overwrite = overwrite.unwrap_or(false);
+    let dest = if let Some(out) = output.filter(|s| !s.trim().is_empty()) {
+        clean_file_path(&out)
+    } else if is_overwrite {
+        clean_in.clone()
+    } else {
+        let candidate = get_non_colliding_path(in_path, "trimmed", None);
+        candidate.to_string_lossy().to_string()
+    };
+
+    if is_overwrite {
+        let temp_dest = format!("{}.lux_tmp.mp4", clean_in);
+        lux_video::trim_video(&clean_in, &temp_dest, start_sec, end_sec, quality.as_deref())
+            .map_err(|e| format!("Trim failed: {}", e))?;
+        std::fs::rename(&temp_dest, &clean_in)
+            .map_err(|e| format!("Failed to overwrite original video: {}", e))?;
+        Ok(clean_in)
+    } else {
+        lux_video::trim_video(&clean_in, &dest, start_sec, end_sec, quality.as_deref())
+            .map_err(|e| format!("Trim failed: {}", e))?;
+        Ok(dest)
+    }
 }
 
 #[tauri::command]
@@ -246,6 +399,75 @@ async fn compose_video_sequence(req: lux_video::ComposeRequest) -> Result<String
     Ok(dest)
 }
 
+#[tauri::command]
+async fn convert_media_file(
+    input_path: String,
+    output_path: String,
+    format: Option<String>,
+    width: Option<u32>,
+    height: Option<u32>,
+    quality: Option<u8>,
+) -> Result<String, String> {
+    let out = output_path.clone();
+    let fmt = format.as_deref().and_then(ExportFormat::from_ext_or_name);
+    tauri::async_runtime::spawn_blocking(move || {
+        lux_edit::convert_image_file(&input_path, &out, fmt, width, height, quality)
+    })
+    .await
+    .map_err(|e| format!("Task spawn error: {}", e))?
+    .map_err(|e| format!("Conversion failed: {}", e))?;
+
+    Ok(output_path)
+}
+
+#[tauri::command]
+async fn save_file_dialog(
+    default_name: String,
+    filter_name: String,
+    extensions: Vec<String>,
+) -> Result<Option<String>, String> {
+    let ext_slices: Vec<&str> = extensions.iter().map(|s| s.as_str()).collect();
+    let mut dialog = rfd::AsyncFileDialog::new().set_file_name(&default_name);
+    if !ext_slices.is_empty() {
+        dialog = dialog.add_filter(&filter_name, &ext_slices);
+    }
+    let file = dialog.save_file().await;
+    Ok(file.map(|f| f.path().to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+fn set_default_media_viewer() -> Result<(), String> {
+    let mimes = [
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+        "image/svg+xml",
+        "image/gif",
+        "image/bmp",
+        "image/avif",
+        "image/tiff",
+        "video/mp4",
+        "video/x-matroska",
+        "video/webm",
+        "video/quicktime",
+        "video/x-msvideo",
+    ];
+
+    let mut args = vec!["default", "luxviewer.desktop"];
+    args.extend(mimes.iter());
+
+    let status = std::process::Command::new("xdg-mime")
+        .args(&args)
+        .status()
+        .map_err(|e| format!("Failed to run xdg-mime: {}", e))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err("xdg-mime command failed".into())
+    }
+}
+
 fn sync_autostart_file(enable: bool) {
     if let Some(home) = std::env::var_os("HOME") {
         let autostart_dir = std::path::PathBuf::from(home)
@@ -285,77 +507,34 @@ fn save_viewer_config(config: lux_core::ViewerConfig) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn get_cli_target() -> Option<String> {
+    std::env::args().skip(1).find(|arg| !arg.starts_with('-'))
+}
+
+#[tauri::command]
 fn exit_application(app: tauri::AppHandle) -> Result<(), String> {
     app.exit(0);
     Ok(())
 }
 
 fn main() {
-    env_logger::init();
-
-    let cfg = lux_core::ViewerConfig::load();
-    if cfg.autostart_at_boot {
-        sync_autostart_file(true);
+    #[cfg(target_os = "linux")]
+    {
+        if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
     }
+
+    env_logger::init();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            use tauri::menu::{Menu, MenuItem};
-            use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-            use tauri::{Emitter, Manager};
-
-            let open_item = MenuItem::with_id(app, "open", "Open luxviewer", true, None::<&str>)?;
-            let settings_item =
-                MenuItem::with_id(app, "settings", "Settings...", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit luxviewer", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open_item, &settings_item, &quit_item])?;
-
-            if let Some(icon) = app.default_window_icon() {
-                let _tray = TrayIconBuilder::new()
-                    .icon(icon.clone())
-                    .menu(&menu)
-                    .show_menu_on_left_click(false)
-                    .on_menu_event(|app, event| match event.id.as_ref() {
-                        "open" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
-                        }
-                        "settings" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                                let _ = window.emit("open-settings", ());
-                            }
-                        }
-                        "quit" => {
-                            app.exit(0);
-                        }
-                        _ => {}
-                    })
-                    .on_tray_icon_event(|tray, event| {
-                        if let TrayIconEvent::Click {
-                            button: MouseButton::Left,
-                            button_state: MouseButtonState::Up,
-                            ..
-                        } = event
-                        {
-                            let app = tray.app_handle();
-                            if let Some(window) = app.get_webview_window("main") {
-                                if window.is_visible().unwrap_or(false) {
-                                    let _ = window.hide();
-                                } else {
-                                    let _ = window.show();
-                                    let _ = window.set_focus();
-                                }
-                            }
-                        }
-                    })
-                    .build(app)?;
+            use tauri::Manager;
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
             }
-
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -380,6 +559,10 @@ fn main() {
             open_folder_dialog,
             pick_audio_file,
             compose_video_sequence,
+            convert_media_file,
+            save_file_dialog,
+            set_default_media_viewer,
+            get_cli_target,
             get_viewer_config,
             save_viewer_config,
             exit_application,

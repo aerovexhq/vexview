@@ -23,6 +23,7 @@ pub struct ComposeRequest {
     pub clips: Vec<SequenceClipInput>,
     pub audio_track: Option<AudioTrackInput>,
     pub destination: String,
+    pub quality: Option<String>,
 }
 
 /// Composes, rearranges, and renders a sequence of clips with optional background music.
@@ -86,19 +87,25 @@ pub fn compose_video_sequence(req: ComposeRequest) -> Result<(), VideoProcessErr
         cmd.args(["-map", "[v_out]"]);
     }
 
+    let (crf, preset, audio_bitrate) = match req.quality.as_deref() {
+        Some("high") | Some("original") => ("18", "medium", "256k"),
+        Some("small") | Some("compressed") => ("28", "veryfast", "128k"),
+        _ => ("22", "fast", "192k"),
+    };
+
     cmd.args([
         "-c:v",
         "libx264",
         "-preset",
-        "fast",
+        preset,
         "-crf",
-        "22",
+        crf,
         "-pix_fmt",
         "yuv420p",
         "-c:a",
         "aac",
         "-b:a",
-        "192k",
+        audio_bitrate,
         "-y",
     ]);
     cmd.arg(&req.destination);
@@ -172,6 +179,7 @@ mod tests {
                     mode: "mix".into(),
                 }),
                 destination: output.to_string_lossy().to_string(),
+                quality: None,
             };
 
             let res = compose_video_sequence(req);

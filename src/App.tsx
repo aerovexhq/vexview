@@ -7,7 +7,9 @@ import { EditorDrawer } from './components/EditorDrawer';
 import { VideoTimeline } from './components/VideoTimeline';
 import { InspectorModal } from './components/InspectorModal';
 import { SettingsModal } from './components/SettingsModal';
+import { FileTypeBadge } from './components/FileTypeBadge';
 import { useViewerStore } from './stores/useViewerStore';
+import { getCliTarget } from './lib/ipc';
 import styles from './App.module.css';
 
 export const App: React.FC = () => {
@@ -27,14 +29,25 @@ export const App: React.FC = () => {
     toggleFilmstrip,
     toggleInspector,
     openMediaFile,
+    openTargetFile,
   } = useViewerStore();
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Load current directory on initial mount
+  // Load CLI target or current directory on initial mount
   useEffect(() => {
-    loadFolder('.');
-  }, [loadFolder]);
+    getCliTarget()
+      .then((target) => {
+        if (target) {
+          openTargetFile(target);
+        } else {
+          loadFolder('.');
+        }
+      })
+      .catch(() => {
+        loadFolder('.');
+      });
+  }, [loadFolder, openTargetFile]);
 
   // Listen to open-settings event from system tray
   useEffect(() => {
@@ -151,6 +164,7 @@ export const App: React.FC = () => {
       <Titlebar onOpenSettings={() => setIsSettingsOpen(true)} />
       <div className={styles.mainArea}>
         <Viewport />
+        <FileTypeBadge />
         <FloatingHud />
         <VideoTimeline />
         <EditorDrawer />

@@ -10,6 +10,76 @@ pub enum VideoProcessError {
     Io(#[from] std::io::Error),
 }
 
+/// Trims video with selected compression/quality level.
+/// quality: "original" (stream copy), "high" (CRF 18), "medium" (CRF 24), "small" (CRF 30)
+pub fn trim_video<P: AsRef<Path>, Q: AsRef<Path>>(
+    input: P,
+    output: Q,
+    start_sec: f64,
+    end_sec: f64,
+    quality: Option<&str>,
+) -> Result<(), VideoProcessError> {
+    let q = quality.unwrap_or("original").to_lowercase();
+    let mut cmd = Command::new("ffmpeg");
+    cmd.args([
+        "-ss",
+        &format!("{:.3}", start_sec),
+        "-to",
+        &format!("{:.3}", end_sec),
+        "-i",
+    ])
+    .arg(input.as_ref());
+
+    match q.as_str() {
+        "high" => {
+            cmd.args([
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-crf", "18",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-pix_fmt", "yuv420p",
+                "-y",
+            ]);
+        }
+        "medium" | "balanced" => {
+            cmd.args([
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-crf", "24",
+                "-c:a", "aac",
+                "-b:a", "128k",
+                "-pix_fmt", "yuv420p",
+                "-y",
+            ]);
+        }
+        "small" | "low" | "compressed" => {
+            cmd.args([
+                "-c:v", "libx264",
+                "-preset", "veryfast",
+                "-crf", "30",
+                "-c:a", "aac",
+                "-b:a", "96k",
+                "-pix_fmt", "yuv420p",
+                "-y",
+            ]);
+        }
+        _ => {
+            // Stream copy / original quality
+            cmd.args(["-c", "copy", "-avoid_negative_ts", "make_zero", "-y"]);
+        }
+    }
+
+    cmd.arg(output.as_ref());
+    let status = cmd.status()?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(VideoProcessError::FfmpegFailed("Video trim failed".into()))
+    }
+}
+
 /// Performs lossless video trimming without re-encoding using stream copy.
 pub fn trim_video_lossless<P: AsRef<Path>, Q: AsRef<Path>>(
     input: P,
@@ -17,26 +87,7 @@ pub fn trim_video_lossless<P: AsRef<Path>, Q: AsRef<Path>>(
     start_sec: f64,
     end_sec: f64,
 ) -> Result<(), VideoProcessError> {
-    let status = Command::new("ffmpeg")
-        .args([
-            "-ss",
-            &format!("{:.3}", start_sec),
-            "-to",
-            &format!("{:.3}", end_sec),
-            "-i",
-        ])
-        .arg(input.as_ref())
-        .args(["-c", "copy", "-avoid_negative_ts", "make_zero", "-y"])
-        .arg(output.as_ref())
-        .status()?;
-
-    if status.success() {
-        Ok(())
-    } else {
-        Err(VideoProcessError::FfmpegFailed(
-            "Lossless video trim failed".into(),
-        ))
-    }
+    trim_video(input, output, start_sec, end_sec, Some("original"))
 }
 
 /// Captures a single video frame at the specified timestamp and saves it as an image.

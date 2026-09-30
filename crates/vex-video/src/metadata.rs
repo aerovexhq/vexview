@@ -84,7 +84,7 @@ mod tests {
     #[test]
     fn test_probe_generated_video() {
         let temp_dir = std::env::temp_dir();
-        let test_video = temp_dir.join("lux_test_probe.mp4");
+        let test_video = temp_dir.join("vex_test_probe.mp4");
 
         // Generate a 1.5-second synthetic video with ffmpeg
         let status = Command::new("ffmpeg")

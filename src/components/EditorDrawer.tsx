@@ -137,7 +137,7 @@ export const EditorDrawer: React.FC = () => {
     try {
       const baseDir = current.path.substring(0, current.path.lastIndexOf('/')) || '.';
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-      const destination = `${baseDir}/lux_sequence_${timestamp}.mp4`;
+      const destination = `${baseDir}/vex_sequence_${timestamp}.mp4`;
 
       const req: ComposeRequest = {
         clips: sequence.map((c) => ({

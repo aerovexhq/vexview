@@ -3196,97 +3196,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lux-core"
-version = "0.1.0"
-dependencies = [
- "directories",
- "log",
- "lru",
- "mime_guess",
- "natord",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "walkdir",
-]
-
-[[package]]
-name = "lux-edit"
-version = "0.1.0"
-dependencies = [
- "fast_image_resize",
- "image",
- "imageproc",
- "log",
- "lux-core",
- "lux-image",
- "serde",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "lux-gui"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "env_logger",
- "gtk4",
- "libadwaita",
- "log",
- "lux-core",
- "lux-edit",
- "lux-image",
- "lux-video",
-]
-
-[[package]]
-name = "lux-image"
-version = "0.1.0"
-dependencies = [
- "fast_image_resize",
- "image",
- "kamadak-exif",
- "log",
- "lux-core",
- "resvg",
- "serde",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "lux-video"
-version = "0.1.0"
-dependencies = [
- "gstreamer",
- "gstreamer-video",
- "log",
- "lux-core",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "luxviewer-app"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "env_logger",
- "image",
- "log",
- "lux-core",
- "lux-edit",
- "lux-image",
- "lux-video",
- "rfd",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-opener",
-]
-
-[[package]]
 name = "markup5ever"
 version = "0.39.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6159,6 +6068,97 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "vex-core"
+version = "0.1.0"
+dependencies = [
+ "directories",
+ "log",
+ "lru",
+ "mime_guess",
+ "natord",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "walkdir",
+]
+
+[[package]]
+name = "vex-edit"
+version = "0.1.0"
+dependencies = [
+ "fast_image_resize",
+ "image",
+ "imageproc",
+ "log",
+ "serde",
+ "thiserror 1.0.69",
+ "vex-core",
+ "vex-image",
+]
+
+[[package]]
+name = "vex-gui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "env_logger",
+ "gtk4",
+ "libadwaita",
+ "log",
+ "vex-core",
+ "vex-edit",
+ "vex-image",
+ "vex-video",
+]
+
+[[package]]
+name = "vex-image"
+version = "0.1.0"
+dependencies = [
+ "fast_image_resize",
+ "image",
+ "kamadak-exif",
+ "log",
+ "resvg",
+ "serde",
+ "thiserror 1.0.69",
+ "vex-core",
+]
+
+[[package]]
+name = "vex-video"
+version = "0.1.0"
+dependencies = [
+ "gstreamer",
+ "gstreamer-video",
+ "log",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "vex-core",
+]
+
+[[package]]
+name = "vexview-app"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "env_logger",
+ "image",
+ "log",
+ "rfd",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
+ "vex-core",
+ "vex-edit",
+ "vex-image",
+ "vex-video",
+]
 
 [[package]]
 name = "vswhom"

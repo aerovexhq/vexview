@@ -1,10 +1,10 @@
 [workspace]
 members = [
-    "crates/lux-core",
-    "crates/lux-image",
-    "crates/lux-video",
-    "crates/lux-edit",
-    "crates/lux-gui",
+    "crates/vex-core",
+    "crates/vex-image",
+    "crates/vex-video",
+    "crates/vex-edit",
+    "crates/vex-gui",
     "src-tauri",
 ]
 resolver = "2"
@@ -14,14 +14,14 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Larvance"]
 license = "MIT"
-repository = "https://github.com/larvance/luxviewer"
+repository = "https://github.com/aerovexsim/vexview"
 
 [workspace.dependencies]
 # Workspace internal crates
-lux-core = { path = "crates/lux-core" }
-lux-image = { path = "crates/lux-image" }
-lux-video = { path = "crates/lux-video" }
-lux-edit = { path = "crates/lux-edit" }
+vex-core = { path = "crates/vex-core" }
+vex-image = { path = "crates/vex-image" }
+vex-video = { path = "crates/vex-video" }
+vex-edit = { path = "crates/vex-edit" }
 
 # Serialization & Logging
 serde = { version = "1.0", features = ["derive"] }

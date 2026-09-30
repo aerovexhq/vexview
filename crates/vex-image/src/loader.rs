@@ -143,7 +143,7 @@ mod tests {
     fn test_svg_rendering() {
         let svg_data = r#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80"><rect width="100" height="80" fill="red"/></svg>"#;
         let temp_dir = std::env::temp_dir();
-        let svg_path = temp_dir.join("lux_test_rect.svg");
+        let svg_path = temp_dir.join("vex_test_rect.svg");
         std::fs::write(&svg_path, svg_data).expect("write svg");
 
         let loaded = load_image(&svg_path).expect("svg should render to dynamic image");

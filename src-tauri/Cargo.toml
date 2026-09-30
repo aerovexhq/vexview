@@ -1,5 +1,5 @@
 [package]
-name = "luxviewer-app"
+name = "vexview-app"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,10 +13,10 @@ tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
 tauri-plugin-opener = "2"
 serde = { workspace = true }
 serde_json = { workspace = true }
-lux-core = { workspace = true }
-lux-image = { workspace = true }
-lux-video = { workspace = true }
-lux-edit = { workspace = true }
+vex-core = { workspace = true }
+vex-image = { workspace = true }
+vex-video = { workspace = true }
+vex-edit = { workspace = true }
 image = { workspace = true }
 log = { workspace = true }
 env_logger = { workspace = true }

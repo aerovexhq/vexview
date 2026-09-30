@@ -89,7 +89,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className={styles.settingInfo}>
                 <span className={styles.settingName}>Default System Media Viewer</span>
                 <span className={styles.settingDesc}>
-                  Register luxviewer as default application for all images and videos
+                  Register vexview as default application for all images and videos
                 </span>
               </div>
               <button
@@ -186,7 +186,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         <div className={styles.footer}>
           <button className={styles.quitBtn} onClick={handleQuit} title="Exit process entirely">
-            Quit luxviewer
+            Quit vexview
           </button>
           <button className={styles.saveBtn} onClick={onClose}>
             Done

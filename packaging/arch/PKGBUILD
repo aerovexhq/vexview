@@ -1,23 +1,22 @@
-# Maintainer: Larvance <https://github.com/larvance>
-pkgname=luxviewer-bin
+# Maintainer: aerovexsim <https://github.com/aerovexsim>
+pkgname=vexview-bin
 pkgver=0.1.0
 pkgrel=1
-pkgdesc="A modern and minimalistic image and video preview and editor app made for Linux with Rust"
+pkgdesc="A modern and minimalistic image and video viewer and editor app made for Linux with Rust"
 arch=('x86_64')
-url="https://github.com/larvance/luxviewer"
+url="https://github.com/aerovexsim/vexview"
 license=('MIT')
 depends=('webkit2gtk-4.1' 'gtk3' 'ffmpeg')
-provides=('luxviewer')
-conflicts=('luxviewer')
-source=("${url}/releases/download/v${pkgver}/luxviewer-linux-x86_64.tar.gz")
+provides=('vexview')
+conflicts=('vexview')
+source=("${url}/releases/download/v${pkgver}/vexview-linux-x86_64.tar.gz")
 sha256sums=('SKIP')
 
 package() {
     cd "${srcdir}"
-    install -Dm755 "luxviewer" "${pkgdir}/usr/bin/luxviewer"
-    install -Dm644 "luxviewer.desktop" "${pkgdir}/usr/share/applications/luxviewer.desktop"
-    install -Dm644 "luxviewer.desktop" "${pkgdir}/etc/xdg/autostart/luxviewer.desktop"
-    install -Dm644 "icons/128x128.png" "${pkgdir}/usr/share/icons/hicolor/128x128/apps/luxviewer.png"
-    install -Dm644 "icons/32x32.png" "${pkgdir}/usr/share/icons/hicolor/32x32/apps/luxviewer.png"
+    install -Dm755 "vexview" "${pkgdir}/usr/bin/vexview"
+    install -Dm644 "vexview.desktop" "${pkgdir}/usr/share/applications/vexview.desktop"
+    install -Dm644 "icons/128x128.png" "${pkgdir}/usr/share/icons/hicolor/128x128/apps/vexview.png"
+    install -Dm644 "icons/32x32.png" "${pkgdir}/usr/share/icons/hicolor/32x32/apps/vexview.png"
     install -Dm644 "LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
 }

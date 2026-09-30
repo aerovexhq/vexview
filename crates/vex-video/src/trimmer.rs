@@ -169,10 +169,10 @@ mod tests {
     #[test]
     fn test_trim_and_capture_and_gif() {
         let temp_dir = std::env::temp_dir();
-        let input_video = temp_dir.join("lux_test_input.mp4");
-        let trimmed_video = temp_dir.join("lux_test_trimmed.mp4");
-        let captured_frame = temp_dir.join("lux_test_frame.png");
-        let exported_gif = temp_dir.join("lux_test_anim.gif");
+        let input_video = temp_dir.join("vex_test_input.mp4");
+        let trimmed_video = temp_dir.join("vex_test_trimmed.mp4");
+        let captured_frame = temp_dir.join("vex_test_frame.png");
+        let exported_gif = temp_dir.join("vex_test_anim.gif");
 
         if generate_test_video(&input_video) {
             // Test trim

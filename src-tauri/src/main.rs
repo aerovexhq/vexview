@@ -2,8 +2,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use base64::prelude::*;
-use lux_core::{MediaItem, ScanFilter};
-use lux_edit::ExportFormat;
+use vex_core::{MediaItem, ScanFilter};
+use vex_edit::ExportFormat;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 use std::path::Path;
@@ -107,7 +107,7 @@ fn scan_folder(folder_path: String) -> Result<Vec<MediaItem>, String> {
     if !p.exists() {
         return Err(format!("Path does not exist: {}", clean));
     }
-    let items = lux_core::scan_directory(p, ScanFilter::AllMedia);
+    let items = vex_core::scan_directory(p, ScanFilter::AllMedia);
     Ok(items)
 }
 
@@ -122,7 +122,7 @@ fn load_image_detail(file_path: String) -> Result<ImageDetailResponse, String> {
         .unwrap_or_default();
 
     if ext == "svg" || ext == "svgz" {
-        let loaded = lux_image::load_image(&clean)
+        let loaded = vex_image::load_image(&clean)
             .map_err(|e| format!("Failed to render SVG: {}", e))?;
         let mut buffer = Cursor::new(Vec::new());
         loaded
@@ -143,7 +143,7 @@ fn load_image_detail(file_path: String) -> Result<ImageDetailResponse, String> {
     }
 
     // For raster images: extract metadata quickly without recompressing
-    let loaded = lux_image::load_image(&clean)
+    let loaded = vex_image::load_image(&clean)
         .map_err(|e| format!("Failed to load image: {}", e))?;
 
     // Read original raw file bytes directly for instant <1ms base64 response
@@ -177,8 +177,8 @@ fn load_image_detail(file_path: String) -> Result<ImageDetailResponse, String> {
 fn get_thumbnail_base64(file_path: String, max_size: u32) -> Result<String, String> {
     let clean = clean_file_path(&file_path);
     let loaded =
-        lux_image::load_image(&clean).map_err(|e| format!("Failed to load image: {}", e))?;
-    let thumb = lux_image::generate_thumbnail(&loaded.image, max_size, max_size)
+        vex_image::load_image(&clean).map_err(|e| format!("Failed to load image: {}", e))?;
+    let thumb = vex_image::generate_thumbnail(&loaded.image, max_size, max_size)
         .map_err(|e| format!("Failed to resize thumbnail: {}", e))?;
 
     let mut buffer = Cursor::new(Vec::new());
@@ -191,9 +191,9 @@ fn get_thumbnail_base64(file_path: String, max_size: u32) -> Result<String, Stri
 }
 
 #[tauri::command]
-fn probe_video(file_path: String) -> Result<lux_video::VideoMetadata, String> {
+fn probe_video(file_path: String) -> Result<vex_video::VideoMetadata, String> {
     let clean = clean_file_path(&file_path);
-    lux_video::probe_video(&clean)
+    vex_video::probe_video(&clean)
         .ok_or_else(|| "Failed to probe video streams with ffprobe".to_string())
 }
 
@@ -202,54 +202,54 @@ fn apply_image_transforms(req: TransformRequest) -> Result<String, String> {
     let clean = clean_file_path(&req.path);
     let path_ref = Path::new(&clean);
     let loaded =
-        lux_image::load_image(&clean).map_err(|e| format!("Failed to load image: {}", e))?;
+        vex_image::load_image(&clean).map_err(|e| format!("Failed to load image: {}", e))?;
     let mut current = loaded.image;
 
     // Apply rotation
     match req.rotation % 360 {
-        90 | -270 => current = lux_edit::rotate_90(&current),
-        180 | -180 => current = lux_edit::rotate_180(&current),
-        270 | -90 => current = lux_edit::rotate_270(&current),
+        90 | -270 => current = vex_edit::rotate_90(&current),
+        180 | -180 => current = vex_edit::rotate_180(&current),
+        270 | -90 => current = vex_edit::rotate_270(&current),
         _ => {}
     }
 
     if req.flip_h {
-        current = lux_edit::flip_h(&current);
+        current = vex_edit::flip_h(&current);
     }
     if req.flip_v {
-        current = lux_edit::flip_v(&current);
+        current = vex_edit::flip_v(&current);
     }
 
     if let Some(crop) = req.crop {
-        current = lux_edit::crop(&current, crop.x, crop.y, crop.width, crop.height);
+        current = vex_edit::crop(&current, crop.x, crop.y, crop.width, crop.height);
     }
 
     if req.brightness != 0 {
-        current = lux_edit::adjust_brightness(&current, req.brightness);
+        current = vex_edit::adjust_brightness(&current, req.brightness);
     }
     if (req.contrast - 0.0).abs() > 0.01 {
-        current = lux_edit::adjust_contrast(&current, req.contrast);
+        current = vex_edit::adjust_contrast(&current, req.contrast);
     }
     if let Some(sat) = req.saturation {
         if sat.abs() > 0.01 {
-            current = lux_edit::adjust_saturation(&current, sat);
+            current = vex_edit::adjust_saturation(&current, sat);
         }
     }
     if let Some(w) = req.warmth {
         if w.abs() > 0.01 {
-            current = lux_edit::adjust_warmth(&current, w);
+            current = vex_edit::adjust_warmth(&current, w);
         }
     }
     if let Some(ref filter_name) = req.filter {
         match filter_name.as_str() {
-            "grayscale" => current = lux_edit::grayscale(&current),
-            "invert" => current = lux_edit::invert(&current),
-            "sepia" => current = lux_edit::sepia(&current),
+            "grayscale" => current = vex_edit::grayscale(&current),
+            "invert" => current = vex_edit::invert(&current),
+            "sepia" => current = vex_edit::sepia(&current),
             _ => {}
         }
     }
     if req.blur > 0.0 {
-        current = lux_edit::blur(&current, req.blur);
+        current = vex_edit::blur(&current, req.blur);
     }
 
     let target_ext = req.format.as_deref().or_else(|| path_ref.extension().and_then(|e| e.to_str()));
@@ -269,7 +269,7 @@ fn apply_image_transforms(req: TransformRequest) -> Result<String, String> {
             next_to.to_string_lossy().to_string()
         };
 
-        lux_edit::export_image(&current, &dest, fmt, req.quality)
+        vex_edit::export_image(&current, &dest, fmt, req.quality)
             .map_err(|e| format!("Failed to export image: {}", e))?;
         return Ok(dest);
     }
@@ -306,14 +306,14 @@ fn trim_video_clip(
     };
 
     if is_overwrite {
-        let temp_dest = format!("{}.lux_tmp.mp4", clean_in);
-        lux_video::trim_video(&clean_in, &temp_dest, start_sec, end_sec, quality.as_deref())
+        let temp_dest = format!("{}.vex_tmp.mp4", clean_in);
+        vex_video::trim_video(&clean_in, &temp_dest, start_sec, end_sec, quality.as_deref())
             .map_err(|e| format!("Trim failed: {}", e))?;
         std::fs::rename(&temp_dest, &clean_in)
             .map_err(|e| format!("Failed to overwrite original video: {}", e))?;
         Ok(clean_in)
     } else {
-        lux_video::trim_video(&clean_in, &dest, start_sec, end_sec, quality.as_deref())
+        vex_video::trim_video(&clean_in, &dest, start_sec, end_sec, quality.as_deref())
             .map_err(|e| format!("Trim failed: {}", e))?;
         Ok(dest)
     }
@@ -321,7 +321,7 @@ fn trim_video_clip(
 
 #[tauri::command]
 fn capture_video_snapshot(input: String, output: String, timestamp: f64) -> Result<(), String> {
-    lux_video::capture_frame(&input, &output, timestamp)
+    vex_video::capture_frame(&input, &output, timestamp)
         .map_err(|e| format!("Snapshot failed: {}", e))
 }
 
@@ -334,7 +334,7 @@ fn export_video_to_gif(
     fps: u32,
     width: u32,
 ) -> Result<(), String> {
-    lux_video::export_gif(&input, &output, start_sec, duration_sec, fps, width)
+    vex_video::export_gif(&input, &output, start_sec, duration_sec, fps, width)
         .map_err(|e| format!("GIF export failed: {}", e))
 }
 
@@ -390,9 +390,9 @@ async fn pick_audio_file() -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
-async fn compose_video_sequence(req: lux_video::ComposeRequest) -> Result<String, String> {
+async fn compose_video_sequence(req: vex_video::ComposeRequest) -> Result<String, String> {
     let dest = req.destination.clone();
-    tauri::async_runtime::spawn_blocking(move || lux_video::compose_video_sequence(req))
+    tauri::async_runtime::spawn_blocking(move || vex_video::compose_video_sequence(req))
         .await
         .map_err(|e| format!("Task spawn error: {}", e))?
         .map_err(|e| format!("Composition failed: {}", e))?;
@@ -411,7 +411,7 @@ async fn convert_media_file(
     let out = output_path.clone();
     let fmt = format.as_deref().and_then(ExportFormat::from_ext_or_name);
     tauri::async_runtime::spawn_blocking(move || {
-        lux_edit::convert_image_file(&input_path, &out, fmt, width, height, quality)
+        vex_edit::convert_image_file(&input_path, &out, fmt, width, height, quality)
     })
     .await
     .map_err(|e| format!("Task spawn error: {}", e))?
@@ -453,7 +453,7 @@ fn set_default_media_viewer() -> Result<(), String> {
         "video/x-msvideo",
     ];
 
-    let mut args = vec!["default", "luxviewer.desktop"];
+    let mut args = vec!["default", "vexview.desktop"];
     args.extend(mimes.iter());
 
     let status = std::process::Command::new("xdg-mime")
@@ -473,16 +473,16 @@ fn sync_autostart_file(enable: bool) {
         let autostart_dir = std::path::PathBuf::from(home)
             .join(".config")
             .join("autostart");
-        let autostart_file = autostart_dir.join("luxviewer.desktop");
+        let autostart_file = autostart_dir.join("vexview.desktop");
 
         if enable {
             let _ = std::fs::create_dir_all(&autostart_dir);
             let desktop_content = "[Desktop Entry]\n\
                 Type=Application\n\
-                Name=luxviewer\n\
+                Name=vexview\n\
                 Comment=Modern & Minimalistic Image and Video Viewer\n\
-                Exec=luxviewer\n\
-                Icon=luxviewer\n\
+                Exec=vexview\n\
+                Icon=vexview\n\
                 Terminal=false\n\
                 Categories=Graphics;Viewer;\n\
                 X-GNOME-Autostart-enabled=true\n";
@@ -494,12 +494,12 @@ fn sync_autostart_file(enable: bool) {
 }
 
 #[tauri::command]
-fn get_viewer_config() -> Result<lux_core::ViewerConfig, String> {
-    Ok(lux_core::ViewerConfig::load())
+fn get_viewer_config() -> Result<vex_core::ViewerConfig, String> {
+    Ok(vex_core::ViewerConfig::load())
 }
 
 #[tauri::command]
-fn save_viewer_config(config: lux_core::ViewerConfig) -> Result<(), String> {
+fn save_viewer_config(config: vex_core::ViewerConfig) -> Result<(), String> {
     sync_autostart_file(config.autostart_at_boot);
     config
         .save()
@@ -539,7 +539,7 @@ fn main() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let config = lux_core::ViewerConfig::load();
+                let config = vex_core::ViewerConfig::load();
                 if config.keep_running_in_background {
                     api.prevent_close();
                     let _ = window.hide();

@@ -105,10 +105,10 @@ pub fn convert_image_file<P: AsRef<Path>, Q: AsRef<Path>>(
         .unwrap_or_default();
 
     let dyn_img = if ext == "svg" || ext == "svgz" {
-        let rgba = lux_image::render_svg(in_ref, target_width, target_height)?;
+        let rgba = vex_image::render_svg(in_ref, target_width, target_height)?;
         DynamicImage::ImageRgba8(rgba)
     } else {
-        let loaded = lux_image::load_image(in_ref)?;
+        let loaded = vex_image::load_image(in_ref)?;
         let mut img = loaded.image;
         if target_width.is_some() || target_height.is_some() {
             let (orig_w, orig_h) = image::GenericImageView::dimensions(&img);
@@ -140,7 +140,7 @@ mod tests {
     #[test]
     fn test_export_png() {
         let temp_dir = std::env::temp_dir();
-        let target = temp_dir.join("test_lux_export.png");
+        let target = temp_dir.join("test_vex_export.png");
         let img = DynamicImage::ImageRgba8(RgbaImage::new(4, 4));
 
         let res = export_image(&img, &target, ExportFormat::Png, Some(80));

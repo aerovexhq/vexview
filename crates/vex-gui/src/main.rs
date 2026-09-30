@@ -5,7 +5,7 @@ fn main() -> anyhow::Result<()> {
     env_logger::init();
 
     let args: Vec<String> = env::args().collect();
-    println!("luxviewer v0.1.0 - Modern & Minimalistic Image & Video Viewer for Linux");
+    println!("vexview v0.1.0 - Modern & Minimalistic Image & Video Viewer for Linux");
 
     if args.len() < 2 || args[1] == "--help" || args[1] == "-h" {
         print_usage();
@@ -37,8 +37,8 @@ fn main() -> anyhow::Result<()> {
 
 fn print_usage() {
     println!("\nUsage:");
-    println!("  luxviewer <path-to-media-or-directory>");
-    println!("  luxviewer --help\n");
+    println!("  vexview <path-to-media-or-directory>");
+    println!("  vexview --help\n");
     println!("Supported Formats:");
     println!("  Images: PNG, JPEG, WebP, AVIF, SVG, GIF, BMP, ICO, TIFF");
     println!("  Videos: MP4, MKV, WebM, AVI, MOV, FLV, WMV\n");
@@ -52,17 +52,17 @@ fn inspect_media(path: &Path) {
     };
 
     println!("\nScanning directory: {}", parent.display());
-    let items = lux_core::scan_directory(parent, lux_core::ScanFilter::AllMedia);
+    let items = vex_core::scan_directory(parent, vex_core::ScanFilter::AllMedia);
     println!("Found {} media items in directory.", items.len());
 
     if path.is_file() {
-        let media_type = lux_core::detect_media_type(path);
+        let media_type = vex_core::detect_media_type(path);
         println!("\nTarget: {}", path.display());
         println!("Detected Media Type: {:?}", media_type);
 
         if media_type.is_image() {
             println!("Loading image data...");
-            match lux_image::load_image(path) {
+            match vex_image::load_image(path) {
                 Ok(loaded) => {
                     println!(
                         "Dimensions: {}x{}",
@@ -83,7 +83,7 @@ fn inspect_media(path: &Path) {
             }
         } else if media_type.is_video() {
             println!("Probing video streams...");
-            if let Some(meta) = lux_video::probe_video(path) {
+            if let Some(meta) = vex_video::probe_video(path) {
                 println!("Resolution: {}x{}", meta.width, meta.height);
                 println!("Duration: {:.2} seconds", meta.duration_seconds);
                 if let Some(codec) = &meta.video_codec {

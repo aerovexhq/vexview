@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Default permissions for luxviewer","local":true,"windows":["main"],"permissions":["core:default","opener:default"]}}
+{"default":{"identifier":"default","description":"Default permissions for vexview","local":true,"windows":["main"],"permissions":["core:default","opener:default"]}}

@@ -1,5 +1,5 @@
 [package]
-name = "lux-video"
+name = "vex-video"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,7 +10,7 @@ default = []
 gstreamer = ["dep:gstreamer", "dep:gstreamer-video"]
 
 [dependencies]
-lux-core.workspace = true
+vex-core.workspace = true
 thiserror.workspace = true
 log.workspace = true
 serde.workspace = true

@@ -32,7 +32,7 @@ export const Titlebar: React.FC<TitlebarProps> = ({ onOpenSettings }) => {
       <div className={styles.leftSection}>
         <div className={styles.appBrand}>
           <span className={styles.brandDot} />
-          luxviewer
+          vexview
         </div>
         <button
           className={styles.actionBtn}

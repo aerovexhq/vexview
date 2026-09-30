@@ -127,10 +127,10 @@ mod tests {
     #[test]
     fn test_compose_sequence_with_music() {
         let temp_dir = std::env::temp_dir();
-        let clip1 = temp_dir.join("lux_compose_c1.mp4");
-        let clip2 = temp_dir.join("lux_compose_c2.mp4");
-        let music = temp_dir.join("lux_compose_m.mp3");
-        let output = temp_dir.join("lux_compose_out.mp4");
+        let clip1 = temp_dir.join("vex_compose_c1.mp4");
+        let clip2 = temp_dir.join("vex_compose_c2.mp4");
+        let music = temp_dir.join("vex_compose_m.mp3");
+        let output = temp_dir.join("vex_compose_out.mp4");
 
         // Generate synthetic clip 1
         let _ = Command::new("ffmpeg")

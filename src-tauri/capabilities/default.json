@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default permissions for luxviewer",
+  "description": "Default permissions for vexview",
   "windows": ["main"],
   "permissions": [
     "core:default",

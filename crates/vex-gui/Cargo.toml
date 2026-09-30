@@ -1,5 +1,5 @@
 [package]
-name = "lux-gui"
+name = "vex-gui"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,10 +10,10 @@ default = []
 gtk = ["dep:gtk4", "dep:libadwaita"]
 
 [dependencies]
-lux-core.workspace = true
-lux-image.workspace = true
-lux-video.workspace = true
-lux-edit.workspace = true
+vex-core.workspace = true
+vex-image.workspace = true
+vex-video.workspace = true
+vex-edit.workspace = true
 anyhow.workspace = true
 env_logger.workspace = true
 log.workspace = true
@@ -22,5 +22,5 @@ gtk4 = { version = "0.9", optional = true }
 libadwaita = { version = "0.7", optional = true }
 
 [[bin]]
-name = "luxviewer"
+name = "vexview"
 path = "src/main.rs"

@@ -138,4 +138,16 @@ mod tests {
             generate_thumbnail(&img, 200, 200).expect("thumbnail generation should succeed");
         assert_eq!(thumb.dimensions(), (200, 100));
     }
+
+    #[test]
+    fn test_svg_rendering() {
+        let svg_data = r#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80"><rect width="100" height="80" fill="red"/></svg>"#;
+        let temp_dir = std::env::temp_dir();
+        let svg_path = temp_dir.join("lux_test_rect.svg");
+        std::fs::write(&svg_path, svg_data).expect("write svg");
+
+        let loaded = load_image(&svg_path).expect("svg should render to dynamic image");
+        assert_eq!(loaded.image.dimensions(), (100, 80));
+        let _ = std::fs::remove_file(svg_path);
+    }
 }

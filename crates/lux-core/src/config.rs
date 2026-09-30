@@ -73,3 +73,25 @@ impl ViewerConfig {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_viewer_config_defaults_and_roundtrip() {
+        let config = ViewerConfig::default();
+        assert!(config.autostart_at_boot);
+        assert!(config.keep_running_in_background);
+        assert!(config.auto_play_videos);
+        assert_eq!(config.default_zoom_mode, ZoomMode::FitToWindow);
+
+        let json = serde_json::to_string_pretty(&config).expect("serialize config");
+        let deserialized: ViewerConfig = serde_json::from_str(&json).expect("deserialize config");
+
+        assert_eq!(deserialized.autostart_at_boot, config.autostart_at_boot);
+        assert_eq!(deserialized.keep_running_in_background, config.keep_running_in_background);
+        assert_eq!(deserialized.default_zoom_mode, config.default_zoom_mode);
+        assert_eq!(deserialized.cache_capacity, config.cache_capacity);
+    }
+}

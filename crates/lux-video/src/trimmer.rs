@@ -94,3 +94,56 @@ pub fn export_gif<P: AsRef<Path>, Q: AsRef<Path>>(
         Err(VideoProcessError::FfmpegFailed("GIF export failed".into()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::process::Command;
+
+    fn generate_test_video(path: &Path) -> bool {
+        Command::new("ffmpeg")
+            .args([
+                "-f", "lavfi",
+                "-i", "testsrc=duration=2:size=160x120:rate=25",
+                "-c:v", "libx264",
+                "-pix_fmt", "yuv420p",
+                "-y",
+            ])
+            .arg(path)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+
+    #[test]
+    fn test_trim_and_capture_and_gif() {
+        let temp_dir = std::env::temp_dir();
+        let input_video = temp_dir.join("lux_test_input.mp4");
+        let trimmed_video = temp_dir.join("lux_test_trimmed.mp4");
+        let captured_frame = temp_dir.join("lux_test_frame.png");
+        let exported_gif = temp_dir.join("lux_test_anim.gif");
+
+        if generate_test_video(&input_video) {
+            // Test trim
+            let trim_res = trim_video_lossless(&input_video, &trimmed_video, 0.5, 1.5);
+            assert!(trim_res.is_ok(), "trim should succeed: {:?}", trim_res);
+            assert!(trimmed_video.exists());
+
+            // Test capture frame
+            let cap_res = capture_frame(&input_video, &captured_frame, 0.5);
+            assert!(cap_res.is_ok(), "frame capture should succeed: {:?}", cap_res);
+            assert!(captured_frame.exists());
+
+            // Test export GIF
+            let gif_res = export_gif(&input_video, &exported_gif, 0.0, 1.0, 10, 160);
+            assert!(gif_res.is_ok(), "gif export should succeed: {:?}", gif_res);
+            assert!(exported_gif.exists());
+
+            // Clean up
+            let _ = std::fs::remove_file(input_video);
+            let _ = std::fs::remove_file(trimmed_video);
+            let _ = std::fs::remove_file(captured_frame);
+            let _ = std::fs::remove_file(exported_gif);
+        }
+    }
+}

@@ -75,3 +75,38 @@ pub fn probe_video<P: AsRef<Path>>(path: P) -> Option<VideoMetadata> {
 
     Some(meta)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::process::Command;
+
+    #[test]
+    fn test_probe_generated_video() {
+        let temp_dir = std::env::temp_dir();
+        let test_video = temp_dir.join("lux_test_probe.mp4");
+
+        // Generate a 1.5-second synthetic video with ffmpeg
+        let status = Command::new("ffmpeg")
+            .args([
+                "-f", "lavfi",
+                "-i", "testsrc=duration=1.5:size=320x240:rate=25",
+                "-c:v", "libx264",
+                "-pix_fmt", "yuv420p",
+                "-y",
+            ])
+            .arg(&test_video)
+            .status();
+
+        if let Ok(st) = status {
+            if st.success() {
+                let meta = probe_video(&test_video).expect("probe should succeed");
+                assert_eq!(meta.width, 320);
+                assert_eq!(meta.height, 240);
+                assert!(meta.duration_seconds >= 1.0);
+                assert_eq!(meta.video_codec.as_deref(), Some("h264"));
+                let _ = std::fs::remove_file(test_video);
+            }
+        }
+    }
+}

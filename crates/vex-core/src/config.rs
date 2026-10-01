@@ -43,7 +43,7 @@ impl Default for ViewerConfig {
 
 impl ViewerConfig {
     fn config_path() -> Option<PathBuf> {
-        ProjectDirs::from("org", "aerovexsim", "vexview")
+        ProjectDirs::from("org", "aerovexhq", "vexview")
             .map(|dirs| dirs.config_dir().join("config.json"))
     }
 

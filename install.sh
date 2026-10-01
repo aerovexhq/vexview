@@ -2,9 +2,9 @@
 set -e
 
 # vexview universal installer for Linux
-# Repository: https://github.com/aerovexsim/vexview
+# Repository: https://github.com/aerovexhq/vexview
 
-REPO="aerovexsim/vexview"
+REPO="aerovexhq/vexview"
 APP_NAME="vexview"
 VERSION="${VEXVIEW_VERSION:-latest}"
 

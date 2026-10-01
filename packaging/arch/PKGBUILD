@@ -1,10 +1,10 @@
-# Maintainer: aerovexsim <https://github.com/aerovexsim>
+# Maintainer: aerovexhq <https://github.com/aerovexhq>
 pkgname=vexview-bin
 pkgver=0.1.0
 pkgrel=1
 pkgdesc="A modern and minimalistic image and video viewer and editor app made for Linux with Rust"
 arch=('x86_64')
-url="https://github.com/aerovexsim/vexview"
+url="https://github.com/aerovexhq/vexview"
 license=('MIT')
 depends=('webkit2gtk-4.1' 'gtk3' 'ffmpeg')
 provides=('vexview')

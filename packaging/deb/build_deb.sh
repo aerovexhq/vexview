@@ -42,7 +42,7 @@ Section: graphics
 Priority: optional
 Architecture: ${ARCH}
 Depends: libwebkit2gtk-4.1-0 | libwebkit2gtk-4.0-37, libgtk-3-0
-Maintainer: aerovexsim <https://github.com/aerovexsim>
+Maintainer: aerovexhq <https://github.com/aerovexhq>
 Description: Modern and minimalistic image and video viewer and editor app for Linux
  An industrial-grade, distraction-free media viewer built with Rust and Tauri.
  Supports JPEG, PNG, WebP, AVIF, SVG, GIF, MP4, MKV, WebM, lossless trimming,

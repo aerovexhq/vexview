@@ -11,20 +11,20 @@ A modern and minimalistic image and video viewer and editor app made for Linux w
 Install or update `vexview` with a single command:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aerovexsim/vexview/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/aerovexhq/vexview/main/install.sh | bash
 ```
 
-> **Note:** To uninstall at any time, run: `curl -fsSL https://raw.githubusercontent.com/aerovexsim/vexview/main/install.sh | bash -s -- --uninstall`
+> **Note:** To uninstall at any time, run: `curl -fsSL https://raw.githubusercontent.com/aerovexhq/vexview/main/install.sh | bash -s -- --uninstall`
 
 ---
 
 ### 2. Ubuntu / Debian / Linux Mint (`.deb`)
 
-Download the latest Debian package from [Releases](https://github.com/aerovexsim/vexview/releases) and install via `apt` or `dpkg`:
+Download the latest Debian package from [Releases](https://github.com/aerovexhq/vexview/releases) and install via `apt` or `dpkg`:
 
 ```bash
 # Download and install the latest .deb package
-curl -LO https://github.com/aerovexsim/vexview/releases/latest/download/vexview_0.1.0_amd64.deb
+curl -LO https://github.com/aerovexhq/vexview/releases/latest/download/vexview_0.1.0_amd64.deb
 sudo dpkg -i vexview_0.1.0_amd64.deb || sudo apt-get install -f -y
 ```
 
@@ -33,7 +33,7 @@ sudo dpkg -i vexview_0.1.0_amd64.deb || sudo apt-get install -f -y
 ### 3. Arch Linux / Manjaro (PKGBUILD / AUR)
 
 ```bash
-git clone https://github.com/aerovexsim/vexview.git
+git clone https://github.com/aerovexhq/vexview.git
 cd vexview/packaging/arch
 makepkg -si
 ```
@@ -45,7 +45,7 @@ makepkg -si
 Download and extract the standalone portable archive:
 
 ```bash
-curl -LO https://github.com/aerovexsim/vexview/releases/latest/download/vexview-linux-x86_64.tar.gz
+curl -LO https://github.com/aerovexhq/vexview/releases/latest/download/vexview-linux-x86_64.tar.gz
 tar -xzf vexview-linux-x86_64.tar.gz
 ./install.sh
 ```

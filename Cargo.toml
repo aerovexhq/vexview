@@ -14,7 +14,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Larvance"]
 license = "MIT"
-repository = "https://github.com/aerovexsim/vexview"
+repository = "https://github.com/aerovexhq/vexview"
 
 [workspace.dependencies]
 # Workspace internal crates

@@ -303,6 +303,11 @@ export async function getCliTarget(): Promise<string | null> {
   return await invoke<string | null>('get_cli_target');
 }
 
+export async function startWindowDragging(): Promise<void> {
+  if (!isTauri) return;
+  return await invoke<void>('start_window_dragging');
+}
+
 export async function minimizeWindow(): Promise<void> {
   if (!isTauri) return;
   return await invoke<void>('minimize_window');

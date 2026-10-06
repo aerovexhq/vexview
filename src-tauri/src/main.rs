@@ -726,6 +726,11 @@ fn exit_application(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn start_window_dragging(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.start_dragging().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn minimize_window(window: tauri::WebviewWindow) -> Result<(), String> {
     window.minimize().map_err(|e| e.to_string())
 }
@@ -881,6 +886,7 @@ fn main() {
             extract_video_audio,
             extract_burst_frames,
             copy_image_to_clipboard,
+            start_window_dragging,
             minimize_window,
             toggle_maximize_window,
             close_window,

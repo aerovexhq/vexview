@@ -5,6 +5,7 @@ import {
   toggleMaximizeWindow,
   closeWindow,
   isWindowMaximized,
+  startWindowDragging,
 } from '../lib/ipc';
 import styles from './Titlebar.module.css';
 
@@ -56,6 +57,15 @@ export const Titlebar: React.FC<TitlebarProps> = ({ onOpenSettings }) => {
     closeWindow();
   };
 
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('button, input, select, textarea, [data-no-drag="true"]')) {
+      return;
+    }
+    startWindowDragging().catch(() => {});
+  };
+
   const current = items[currentIndex];
 
   const formatFileSize = (bytes: number) => {
@@ -67,11 +77,11 @@ export const Titlebar: React.FC<TitlebarProps> = ({ onOpenSettings }) => {
   return (
     <header
       className={styles.titlebar}
-      data-tauri-drag-region
-      onDoubleClick={handleToggleMaximize}
+      data-tauri-drag-region="deep"
+      onPointerDown={handlePointerDown}
     >
-      <div className={styles.leftSection} data-tauri-drag-region>
-        <div className={styles.appBrand} data-tauri-drag-region>
+      <div className={styles.leftSection} data-tauri-drag-region="deep">
+        <div className={styles.appBrand} data-tauri-drag-region="deep">
           <svg
             width="15"
             height="15"
@@ -106,7 +116,8 @@ export const Titlebar: React.FC<TitlebarProps> = ({ onOpenSettings }) => {
         <button
           className={styles.actionBtn}
           onClick={openMediaFile}
-          onDoubleClick={(e) => e.stopPropagation()}
+          data-no-drag="true"
+          data-tauri-drag-region="false"
           title="Open Media File (Ctrl+O)"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -115,35 +126,40 @@ export const Titlebar: React.FC<TitlebarProps> = ({ onOpenSettings }) => {
           </svg>
           Open...
         </button>
-        {current && <span className={styles.fileName} data-tauri-drag-region>{current.file_name}</span>}
+        {current && (
+          <span className={styles.fileName} data-tauri-drag-region="deep">
+            {current.file_name}
+          </span>
+        )}
       </div>
 
-      <div className={styles.centerSection} data-tauri-drag-region>
+      <div className={styles.centerSection} data-tauri-drag-region="deep">
         {imageDetail && (
-          <div className={`${styles.metaBadge} tabular-nums`}>
+          <div className={`${styles.metaBadge} tabular-nums`} data-tauri-drag-region="deep">
             {imageDetail.width} × {imageDetail.height}
           </div>
         )}
         {videoDetail && (
-          <div className={`${styles.metaBadge} tabular-nums`}>
+          <div className={`${styles.metaBadge} tabular-nums`} data-tauri-drag-region="deep">
             {videoDetail.width} × {videoDetail.height}
             {videoDetail.frame_rate ? ` • ${videoDetail.frame_rate.toFixed(0)} FPS` : ''}
             {videoDetail.video_codec ? ` • ${videoDetail.video_codec.toUpperCase()}` : ''}
           </div>
         )}
         {current && (
-          <div className={`${styles.metaBadge} tabular-nums`}>
+          <div className={`${styles.metaBadge} tabular-nums`} data-tauri-drag-region="deep">
             {formatFileSize(current.file_size)}
           </div>
         )}
       </div>
 
-      <div className={styles.rightSection} data-tauri-drag-region>
+      <div className={styles.rightSection} data-tauri-drag-region="deep">
         {current?.media_type !== 'Video' && (
           <button
             className={`${styles.actionBtn} ${activeMode === 'edit' ? styles.active : ''}`}
             onClick={() => setActiveMode(activeMode === 'edit' ? 'view' : 'edit')}
-            onDoubleClick={(e) => e.stopPropagation()}
+            data-no-drag="true"
+            data-tauri-drag-region="false"
             title="Studio Image Adjustments (E)"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -158,7 +174,8 @@ export const Titlebar: React.FC<TitlebarProps> = ({ onOpenSettings }) => {
           <button
             className={`${styles.actionBtn} ${activeMode === 'trim' ? styles.active : ''}`}
             onClick={() => setActiveMode(activeMode === 'trim' ? 'view' : 'trim')}
-            onDoubleClick={(e) => e.stopPropagation()}
+            data-no-drag="true"
+            data-tauri-drag-region="false"
             title="Lossless Trimmer (T)"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -175,7 +192,8 @@ export const Titlebar: React.FC<TitlebarProps> = ({ onOpenSettings }) => {
         <button
           className={`${styles.actionBtn} ${showInspector ? styles.active : ''}`}
           onClick={toggleInspector}
-          onDoubleClick={(e) => e.stopPropagation()}
+          data-no-drag="true"
+          data-tauri-drag-region="false"
           title="EXIF & Media Inspector (I)"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -189,7 +207,8 @@ export const Titlebar: React.FC<TitlebarProps> = ({ onOpenSettings }) => {
         <button
           className={styles.actionBtn}
           onClick={onOpenSettings}
-          onDoubleClick={(e) => e.stopPropagation()}
+          data-no-drag="true"
+          data-tauri-drag-region="false"
           title="Settings & Preferences (Ctrl+,)"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -199,14 +218,15 @@ export const Titlebar: React.FC<TitlebarProps> = ({ onOpenSettings }) => {
           Settings
         </button>
 
-        <div className={styles.divider} />
+        <div className={styles.divider} data-tauri-drag-region="false" />
 
         {/* Custom Window Frame Controls */}
-        <div className={styles.windowControls} data-tauri-drag-region="false">
+        <div className={styles.windowControls} data-no-drag="true" data-tauri-drag-region="false">
           <button
             className={styles.windowControlBtn}
             onClick={handleMinimize}
-            onDoubleClick={(e) => e.stopPropagation()}
+            data-no-drag="true"
+            data-tauri-drag-region="false"
             title="Minimize"
           >
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -216,7 +236,8 @@ export const Titlebar: React.FC<TitlebarProps> = ({ onOpenSettings }) => {
           <button
             className={styles.windowControlBtn}
             onClick={handleToggleMaximize}
-            onDoubleClick={(e) => e.stopPropagation()}
+            data-no-drag="true"
+            data-tauri-drag-region="false"
             title={isMaximized ? 'Restore' : 'Maximize'}
           >
             {isMaximized ? (
@@ -233,7 +254,8 @@ export const Titlebar: React.FC<TitlebarProps> = ({ onOpenSettings }) => {
           <button
             className={`${styles.windowControlBtn} ${styles.closeBtn}`}
             onClick={handleClose}
-            onDoubleClick={(e) => e.stopPropagation()}
+            data-no-drag="true"
+            data-tauri-drag-region="false"
             title="Close"
           >
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">

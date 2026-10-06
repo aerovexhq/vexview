@@ -1,7 +1,16 @@
 import React from 'react';
 import { useViewerStore, ActiveSubTool } from '../stores/useViewerStore';
 import { applyImageAnnotations } from '../lib/ipc';
+import { Select, SelectOption } from './ui/Select';
 import styles from './ToolPalette.module.css';
+
+const STROKE_WIDTH_OPTIONS: SelectOption<number>[] = [
+  { value: 2, label: '2px' },
+  { value: 4, label: '4px' },
+  { value: 8, label: '8px' },
+  { value: 16, label: '16px' },
+  { value: 24, label: '24px' },
+];
 
 const COLOR_PRESETS: Array<{ label: string; rgba: [number, number, number, number]; hex: string }> = [
   { label: 'Safety Red', rgba: [239, 68, 68, 255], hex: '#ef4444' },
@@ -234,18 +243,15 @@ export const ToolPalette: React.FC = () => {
       <div className={styles.divider} />
 
       {/* Stroke width selector */}
-      <select
-        className={styles.strokeWidthSelect}
+      <Select<number>
+        size="sm"
         value={strokeWidth}
-        onChange={(e) => setStrokeWidth(Number(e.target.value))}
+        onChange={(val) => setStrokeWidth(val)}
+        options={STROKE_WIDTH_OPTIONS}
         title="Stroke Width"
-      >
-        <option value={2}>2px</option>
-        <option value={4}>4px</option>
-        <option value={8}>8px</option>
-        <option value={16}>16px</option>
-        <option value={24}>24px</option>
-      </select>
+        className={styles.strokeWidthSelectWrapper}
+        menuWidth={72}
+      />
 
       <div className={styles.divider} />
 

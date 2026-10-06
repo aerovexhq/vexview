@@ -224,23 +224,10 @@
   gap: 6px;
 }
 
-.qualityBadgeSelect {
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-hairline);
-  color: var(--text-secondary);
-  font-size: 10px;
-  font-weight: 600;
-  padding: 4px 6px;
-  border-radius: var(--radius-sm);
-  outline: none;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-
-  &:hover {
-    color: var(--text-primary);
-    border-color: var(--border-subtle);
-  }
+.qualitySelectWrapper {
+  min-width: 140px;
 }
+
 
 .overwriteLabel {
   display: flex;

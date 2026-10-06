@@ -6,7 +6,7 @@ import {
   exitApplication,
   setDefaultMediaViewer,
 } from '../lib/ipc';
-import { CustomSelect, SelectOption } from './common/CustomSelect';
+import { Select, SelectOption } from './ui/Select';
 import { ToggleSwitch } from './common/ToggleSwitch';
 import styles from './SettingsModal.module.css';
 
@@ -160,11 +160,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Initial sizing mode when media opens
                 </span>
               </div>
-              <CustomSelect<'FitToWindow' | 'OriginalSize' | 'Stretch'>
+              <Select<'FitToWindow' | 'OriginalSize' | 'Stretch'>
                 value={config.default_zoom_mode}
                 options={ZOOM_OPTIONS}
                 onChange={handleChangeZoom}
                 ariaLabel="Default Zoom Mode"
+                style={{ width: '180px' }}
               />
             </div>
 

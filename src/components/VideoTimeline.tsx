@@ -1,7 +1,15 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useViewerStore } from '../stores/useViewerStore';
 import { trimVideo, exportGif } from '../lib/ipc';
+import { Select, SelectOption } from './ui/Select';
 import styles from './VideoTimeline.module.css';
+
+const VIDEO_TRIM_QUALITY_OPTIONS: SelectOption<'original' | 'high' | 'medium' | 'small'>[] = [
+  { value: 'original', label: 'Original (Stream Copy)' },
+  { value: 'high', label: 'High Quality (CRF 18)' },
+  { value: 'medium', label: 'Balanced (CRF 24)' },
+  { value: 'small', label: 'Small Size (CRF 30)' },
+];
 
 export const VideoTimeline: React.FC = () => {
   const {
@@ -269,21 +277,20 @@ export const VideoTimeline: React.FC = () => {
             </div>
 
             <div className={styles.trimOptionsRow}>
-              <select
-                className={styles.qualityBadgeSelect}
+              <Select<'original' | 'high' | 'medium' | 'small'>
+                size="sm"
+                placement="up"
                 value={trimQuality}
-                onChange={(e) => setTrimQuality(e.target.value as any)}
+                onChange={(val) => setTrimQuality(val)}
+                options={VIDEO_TRIM_QUALITY_OPTIONS}
                 title="Select compression or original quality"
-              >
-                <option value="original">Original (Stream Copy)</option>
-                <option value="high">High Quality (CRF 18)</option>
-                <option value="medium">Balanced (CRF 24)</option>
-                <option value="small">Small Size (CRF 30)</option>
-              </select>
+                className={styles.qualitySelectWrapper}
+                menuWidth={180}
+              />
 
               <label
                 className={`${styles.overwriteLabel} ${trimOverwrite ? styles.warning : ''}`}
-                title={trimOverwrite ? '⚠️ Will replace original video file on disk' : 'Saves next to original'}
+                title={trimOverwrite ? 'Will replace original video file on disk' : 'Saves next to original'}
               >
                 <input
                   type="checkbox"
@@ -309,7 +316,7 @@ export const VideoTimeline: React.FC = () => {
               className={`${styles.trimBtn} ${trimOverwrite ? styles.overwrite : ''}`}
               onClick={handleTrimVideo}
               disabled={isTrimming}
-              title={trimOverwrite ? '⚠️ Overwrites original video' : 'Cuts and saves a copy next to original'}
+              title={trimOverwrite ? 'Overwrites original video' : 'Cuts and saves a copy next to original'}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <circle cx="6" cy="6" r="3" />

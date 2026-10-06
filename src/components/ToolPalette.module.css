@@ -73,21 +73,10 @@
   }
 }
 
-.strokeWidthSelect {
-  background: rgba(30, 41, 59, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #f8fafc;
-  font-size: 11px;
-  font-family: monospace;
-  padding: 3px 6px;
-  border-radius: 4px;
-  outline: none;
-  cursor: pointer;
-
-  &:hover {
-    border-color: rgba(255, 255, 255, 0.3);
-  }
+.strokeWidthSelectWrapper {
+  width: 64px;
 }
+
 
 .bakeButton {
   background-color: #059669;

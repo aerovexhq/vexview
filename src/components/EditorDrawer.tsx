@@ -10,7 +10,7 @@ import {
   extractVideoAudio,
   extractBurstFrames,
 } from '../lib/ipc';
-import { CustomSelect, SelectOption } from './common/CustomSelect';
+import { Select, SelectOption } from './ui/Select';
 import styles from './EditorDrawer.module.css';
 
 const AUDIO_MODE_OPTIONS: SelectOption<'mix' | 'replace'>[] = [
@@ -480,7 +480,7 @@ export const EditorDrawer: React.FC = () => {
                 <div className={styles.sliderHeader}>
                   <span>Target Format</span>
                 </div>
-                <CustomSelect<EditorState['exportFormat']>
+                <Select<EditorState['exportFormat']>
                   value={editor.exportFormat}
                   options={FORMAT_OPTIONS}
                   onChange={(fmt) => updateEditor({ exportFormat: fmt })}
@@ -815,7 +815,7 @@ export const EditorDrawer: React.FC = () => {
             {/* Video Export Quality */}
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Output Quality</div>
-              <CustomSelect<'high' | 'medium' | 'small'>
+              <Select<'high' | 'medium' | 'small'>
                 value={videoQuality}
                 options={VIDEO_QUALITY_OPTIONS}
                 onChange={(q) => setVideoQuality(q)}
@@ -944,7 +944,7 @@ export const EditorDrawer: React.FC = () => {
                     <div className={styles.sliderHeader}>
                       <span>Audio Mode</span>
                     </div>
-                    <CustomSelect<'mix' | 'replace'>
+                    <Select<'mix' | 'replace'>
                       value={audioTrack.mode}
                       options={AUDIO_MODE_OPTIONS}
                       onChange={(mode) => setAudioMode(mode)}
@@ -970,7 +970,7 @@ export const EditorDrawer: React.FC = () => {
             {/* Sequence Quality & Compression */}
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Render Quality</div>
-              <CustomSelect<'high' | 'medium' | 'small'>
+              <Select<'high' | 'medium' | 'small'>
                 value={sequenceQuality}
                 options={SEQUENCE_QUALITY_OPTIONS}
                 onChange={(q) => setSequenceQuality(q)}

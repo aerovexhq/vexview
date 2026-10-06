@@ -10,7 +10,7 @@ export const FloatingHud: React.FC = () => {
     prevItem,
     zoom,
     setZoom,
-    resetView,
+    centerView,
     showFilmstrip,
     toggleFilmstrip,
     activeMode,
@@ -48,7 +48,7 @@ export const FloatingHud: React.FC = () => {
 
   return (
     <div className={`${styles.hudWrapper} ${visible ? '' : styles.hidden}`}>
-      <div className={styles.hudContainer}>
+      <div className={styles.hudContainer} data-role="floating-hud">
         {/* Navigation */}
         <button
           className={styles.hudBtn}
@@ -85,8 +85,8 @@ export const FloatingHud: React.FC = () => {
 
         <div
           className={`${styles.zoomIndicator} tabular-nums`}
-          onClick={resetView}
-          title="Click to Reset 100% (0)"
+          onClick={centerView}
+          title="Click to Center and Fit (0 / F)"
         >
           {(zoom * 100).toFixed(0)}%
         </div>
@@ -99,6 +99,18 @@ export const FloatingHud: React.FC = () => {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </button>
+
+        {/* Center and Fit Button */}
+        <button
+          className={styles.hudBtn}
+          onClick={centerView}
+          title="Center in Safe Viewport (0 / F)"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+            <circle cx="12" cy="12" r="2" />
           </svg>
         </button>
 

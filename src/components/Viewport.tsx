@@ -1,10 +1,57 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useViewerStore } from '../stores/useViewerStore';
 import { CropOverlay } from './CropOverlay';
 import { AnnotationLayer } from './AnnotationLayer';
 import { ToolPalette } from './ToolPalette';
 import styles from './Viewport.module.css';
+
+const getSafeArea = (viewportEl: HTMLElement) => {
+  const viewportRect = viewportEl.getBoundingClientRect();
+
+  // Find top bar element
+  const topEl = (viewportEl.querySelector('[data-role="tool-palette"]') ||
+    document.querySelector('[data-role="tool-palette"]')) as HTMLElement | null;
+  let topBarrier = 58;
+  if (topEl) {
+    const topRect = topEl.getBoundingClientRect();
+    topBarrier = Math.max(0, topRect.bottom - viewportRect.top);
+  }
+
+  // Find bottom bar element (FloatingHud or VideoTimeline)
+  const bottomHudEl = document.querySelector('[data-role="floating-hud"]') as HTMLElement | null;
+  const bottomTimelineEl = document.querySelector('[data-role="video-timeline"]') as HTMLElement | null;
+  const bottomBar = bottomTimelineEl || bottomHudEl;
+
+  let bottomBarrier = 126;
+  if (bottomBar) {
+    const bottomRect = bottomBar.getBoundingClientRect();
+    if (bottomRect.top < viewportRect.bottom && bottomRect.bottom > viewportRect.top) {
+      bottomBarrier = Math.max(0, viewportRect.bottom - bottomRect.top);
+    }
+  }
+
+  const verticalPadding = 24; // Padding from top and bottom bars
+  const horizontalPadding = 32;
+
+  const effectiveTop = Math.max(16, topBarrier + verticalPadding);
+  const effectiveBottom = Math.max(16, bottomBarrier + verticalPadding);
+
+  const availableWidth = Math.max(100, viewportRect.width - (horizontalPadding * 2));
+  const availableHeight = Math.max(100, viewportRect.height - effectiveTop - effectiveBottom);
+
+  const safeCenterY = effectiveTop + availableHeight / 2;
+  const viewportCenterY = viewportRect.height / 2;
+  const targetPanY = Math.round(safeCenterY - viewportCenterY);
+  const targetPanX = 0;
+
+  return {
+    availableWidth,
+    availableHeight,
+    targetPanX,
+    targetPanY,
+  };
+};
 
 export const Viewport: React.FC = () => {
   const {
@@ -18,7 +65,7 @@ export const Viewport: React.FC = () => {
     pan,
     setPan,
     setZoomAndPan,
-    resetView,
+    setCenterViewAction,
     activeMode,
     editor,
     updateEditor,
@@ -130,35 +177,116 @@ export const Viewport: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setActiveSubTool, undoAnnotation, redoAnnotation]);
 
-  // Non-passive wheel listener for smooth cursor-centered zoom
+  // Center and fit media in the safe area between top tools and bottom bar with padding
+  const centerAndFitMedia = useCallback(() => {
+    const el = viewportRef.current;
+    if (!el || !current) return;
+
+    const mw = isVideo
+      ? (videoDetail?.width || videoRef.current?.videoWidth || 1920)
+      : (imageDetail?.width || imgRef.current?.naturalWidth || 1920);
+
+    const mh = isVideo
+      ? (videoDetail?.height || videoRef.current?.videoHeight || 1080)
+      : (imageDetail?.height || imgRef.current?.naturalHeight || 1080);
+
+    if (mw <= 0 || mh <= 0) return;
+
+    const { availableWidth, availableHeight, targetPanX, targetPanY } = getSafeArea(el);
+
+    const scaleX = availableWidth / mw;
+    const scaleY = availableHeight / mh;
+    const fitScale = Math.min(scaleX, scaleY);
+
+    const targetZoom = Number((fitScale < 1.0 ? fitScale : Math.min(fitScale, 1.0)).toFixed(4));
+    const newPan = { x: targetPanX, y: targetPanY };
+
+    panRef.current = newPan;
+    zoomRef.current = targetZoom;
+
+    if (canvasRef.current) {
+      canvasRef.current.style.transform = `translate3d(${newPan.x}px, ${newPan.y}px, 0px) scale(${targetZoom})`;
+    }
+
+    setZoomAndPan(targetZoom, newPan);
+  }, [current, isVideo, videoDetail, imageDetail, setZoomAndPan]);
+
+  // Expose centerAndFitMedia to store
+  useEffect(() => {
+    setCenterViewAction(centerAndFitMedia);
+    return () => setCenterViewAction(null);
+  }, [centerAndFitMedia, setCenterViewAction]);
+
+  // Initial auto-centering on media change
+  useEffect(() => {
+    if (current) {
+      const timer = setTimeout(() => {
+        centerAndFitMedia();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [current?.path, centerAndFitMedia]);
+
+  // Re-fit on window resize
+  useEffect(() => {
+    const handleResize = () => {
+      centerAndFitMedia();
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [centerAndFitMedia]);
+
+  // Non-passive wheel listener: Alt+Scroll to zoom, normal scroll to pan (up/down/left/right)
   useEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
 
     const handleWheelNative = (e: WheelEvent) => {
       e.preventDefault();
-      const factor = e.deltaY < 0 ? 1.15 : 0.85;
-      const currentZoom = zoomRef.current;
-      const currentPan = panRef.current;
-      const newZoom = Math.max(0.1, Math.min(currentZoom * factor, 32.0));
 
-      if (newZoom !== currentZoom && el) {
-        const rect = el.getBoundingClientRect();
-        const offsetX = e.clientX - (rect.left + rect.width / 2);
-        const offsetY = e.clientY - (rect.top + rect.height / 2);
-        const scaleRatio = newZoom / currentZoom;
-        const newPanX = offsetX - (offsetX - currentPan.x) * scaleRatio;
-        const newPanY = offsetY - (offsetY - currentPan.y) * scaleRatio;
+      const isZoom = e.altKey || e.ctrlKey;
 
-        const updatedPan = { x: Math.round(newPanX), y: Math.round(newPanY) };
+      if (isZoom) {
+        // Alt+Scroll (or Ctrl+Scroll): smooth cursor-anchored zoom
+        const factor = e.deltaY < 0 ? 1.15 : 0.85;
+        const currentZoom = zoomRef.current;
+        const currentPan = panRef.current;
+        const newZoom = Math.max(0.05, Math.min(currentZoom * factor, 32.0));
+
+        if (newZoom !== currentZoom && el) {
+          const rect = el.getBoundingClientRect();
+          const offsetX = e.clientX - (rect.left + rect.width / 2);
+          const offsetY = e.clientY - (rect.top + rect.height / 2);
+          const scaleRatio = newZoom / currentZoom;
+          const newPanX = offsetX - (offsetX - currentPan.x) * scaleRatio;
+          const newPanY = offsetY - (offsetY - currentPan.y) * scaleRatio;
+
+          const updatedPan = { x: Math.round(newPanX), y: Math.round(newPanY) };
+          panRef.current = updatedPan;
+          zoomRef.current = newZoom;
+
+          if (canvasRef.current) {
+            canvasRef.current.style.transform = `translate3d(${updatedPan.x}px, ${updatedPan.y}px, 0px) scale(${newZoom})`;
+          }
+
+          setZoomAndPan(newZoom, updatedPan);
+        }
+      } else {
+        // Normal scroll: pan up/down/left/right
+        const deltaX = e.shiftKey ? e.deltaY : e.deltaX;
+        const deltaY = e.shiftKey ? 0 : e.deltaY;
+
+        const newPanX = Math.round(panRef.current.x - deltaX);
+        const newPanY = Math.round(panRef.current.y - deltaY);
+
+        const updatedPan = { x: newPanX, y: newPanY };
         panRef.current = updatedPan;
-        zoomRef.current = newZoom;
 
         if (canvasRef.current) {
-          canvasRef.current.style.transform = `translate3d(${updatedPan.x}px, ${updatedPan.y}px, 0px) scale(${newZoom})`;
+          canvasRef.current.style.transform = `translate3d(${newPanX}px, ${newPanY}px, 0px) scale(${zoomRef.current})`;
         }
 
-        setZoomAndPan(newZoom, updatedPan);
+        setPan(updatedPan);
       }
     };
 
@@ -166,7 +294,7 @@ export const Viewport: React.FC = () => {
     return () => {
       el.removeEventListener('wheel', handleWheelNative);
     };
-  }, [setZoomAndPan]);
+  }, [setZoomAndPan, setPan]);
 
   // Pointer drag pan
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -250,7 +378,7 @@ export const Viewport: React.FC = () => {
     if ((e.target as HTMLElement).closest(`.${styles.splitHandle}`)) return;
     if ((e.target as HTMLElement).closest(`.${styles.buttonGroup}`)) return;
 
-    if (zoom === 1.0 && viewportRef.current) {
+    if (zoom <= 1.05 && viewportRef.current) {
       const rect = viewportRef.current.getBoundingClientRect();
       const offsetX = e.clientX - (rect.left + rect.width / 2);
       const offsetY = e.clientY - (rect.top + rect.height / 2);
@@ -269,7 +397,7 @@ export const Viewport: React.FC = () => {
 
       setZoomAndPan(newZoom, updatedPan);
     } else {
-      resetView();
+      centerAndFitMedia();
     }
   };
 
@@ -425,6 +553,7 @@ export const Viewport: React.FC = () => {
               onLoadedMetadata={(e) => {
                 const d = (e.target as HTMLVideoElement).duration;
                 if (d > 0) setDuration(d);
+                centerAndFitMedia();
               }}
               onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
               loop
@@ -438,6 +567,7 @@ export const Viewport: React.FC = () => {
                 src={imageDetail?.data_url || assetUrl}
                 alt="Original"
                 className={styles.splitOriginal}
+                onLoad={() => centerAndFitMedia()}
               />
               <div
                 className={styles.splitEdited}
@@ -469,6 +599,7 @@ export const Viewport: React.FC = () => {
               src={displaySrc}
               alt={current.file_name}
               className={styles.imageElement}
+              onLoad={() => centerAndFitMedia()}
               style={{
                 transform: `rotate(${editor.rotation}deg) scaleX(${editor.flipH ? -1 : 1}) scaleY(${editor.flipV ? -1 : 1})`,
                 filter: getFilterStyle(),

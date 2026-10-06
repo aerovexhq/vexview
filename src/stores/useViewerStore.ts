@@ -142,6 +142,9 @@ interface ViewerStore {
   setPan: (pan: { x: number; y: number }) => void;
   setZoomAndPan: (zoom: number, pan: { x: number; y: number }) => void;
   resetView: () => void;
+  centerView: () => void;
+  setCenterViewAction: (fn: (() => void) | null) => void;
+  centerViewAction: (() => void) | null;
   setActiveMode: (mode: 'view' | 'edit' | 'trim') => void;
   toggleFilmstrip: () => void;
   toggleInspector: () => void;
@@ -268,6 +271,7 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
 
   sequence: [],
   audioTrack: null,
+  centerViewAction: null,
 
   loadFolder: async (path: string) => {
     set({ loading: true, error: null, folderPath: path });
@@ -345,8 +349,24 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
   setZoom: (zoom) => set({ zoom: Math.max(0.1, Math.min(zoom, 32.0)) }),
   setPan: (pan) => set({ pan }),
   setZoomAndPan: (zoom, pan) =>
-    set({ zoom: Math.max(0.1, Math.min(zoom, 32.0)), pan }),
-  resetView: () => set({ zoom: 1.0, pan: { x: 0, y: 0 } }),
+    set({ zoom: Math.max(0.05, Math.min(zoom, 32.0)), pan }),
+  setCenterViewAction: (centerViewAction) => set({ centerViewAction }),
+  centerView: () => {
+    const fn = get().centerViewAction;
+    if (fn) {
+      fn();
+    } else {
+      set({ zoom: 1.0, pan: { x: 0, y: 0 } });
+    }
+  },
+  resetView: () => {
+    const fn = get().centerViewAction;
+    if (fn) {
+      fn();
+    } else {
+      set({ zoom: 1.0, pan: { x: 0, y: 0 } });
+    }
+  },
 
   setActiveMode: (activeMode) => set({ activeMode }),
   toggleFilmstrip: () => set((s) => ({ showFilmstrip: !s.showFilmstrip })),

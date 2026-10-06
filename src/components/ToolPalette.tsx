@@ -214,7 +214,8 @@ export const ToolPalette: React.FC = () => {
   ];
 
   return (
-    <div className={styles.toolPalette}>
+    <div className={styles.toolPaletteWrapper}>
+      <div className={styles.toolPaletteContainer} data-role="tool-palette">
       {/* Tool selector buttons */}
       {tools.map((t) => (
         <button
@@ -312,6 +313,7 @@ export const ToolPalette: React.FC = () => {
           </button>
         </>
       )}
+      </div>
     </div>
   );
 };

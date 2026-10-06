@@ -25,6 +25,7 @@ export const VideoTimeline: React.FC = () => {
     zoom,
     setZoom,
     resetView,
+    centerView,
     activeMode,
     setActiveMode,
     trimRange,
@@ -182,6 +183,7 @@ export const VideoTimeline: React.FC = () => {
   return (
     <div
       className={`${styles.timelineWrapper} ${visible ? '' : styles.hidden}`}
+      data-role="video-timeline"
       onMouseEnter={() => setVisible(true)}
     >
       {/* 1. Precision Timeline Scrubber */}
@@ -358,6 +360,18 @@ export const VideoTimeline: React.FC = () => {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+
+          {/* Center and Fit Button */}
+          <button
+            className={styles.controlBtn}
+            onClick={centerView}
+            title="Center in Safe Viewport (0 / F)"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+              <circle cx="12" cy="12" r="2" />
             </svg>
           </button>
 

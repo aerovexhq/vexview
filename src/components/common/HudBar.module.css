@@ -1,14 +1,14 @@
-.toolPaletteWrapper {
+.hudWrapper {
   position: absolute;
-  top: 16px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 40;
+  transition: opacity 300ms var(--ease-out-expo), transform 300ms var(--ease-out-expo);
   pointer-events: auto;
   user-select: none;
 }
 
-.toolPaletteContainer {
+.hudContainer {
   background-color: var(--bg-hud);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -22,7 +22,7 @@
   box-sizing: border-box;
 }
 
-.toolButton {
+.hudBtn {
   background: transparent;
   border: none;
   color: var(--text-secondary);
@@ -57,48 +57,4 @@
   height: 16px;
   background-color: var(--border-hairline);
   margin: 0 4px;
-}
-
-.colorSwatch {
-  width: 16px;
-  height: 16px;
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  border: 1.5px solid transparent;
-  transition: transform var(--transition-fast), border-color var(--transition-fast);
-  box-sizing: border-box;
-
-  &:hover {
-    transform: scale(1.15);
-  }
-
-  &.activeSwatch {
-    border-color: #ffffff;
-    transform: scale(1.2);
-    box-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
-  }
-}
-
-.strokeWidthSelectWrapper {
-  width: 66px;
-}
-
-.bakeButton {
-  background-color: var(--text-accent);
-  color: #000000;
-  border: none;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  transition: all var(--transition-fast);
-
-  &:hover {
-    background-color: var(--text-accent-hover);
-    transform: translateY(-1px);
-  }
 }

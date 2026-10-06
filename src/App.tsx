@@ -18,6 +18,7 @@ export const App: React.FC = () => {
     nextItem,
     prevItem,
     resetView,
+    centerView,
     setZoom,
     zoom,
     items,
@@ -105,7 +106,9 @@ export const App: React.FC = () => {
           }
           break;
         case '0':
-          resetView();
+        case 'f':
+        case 'F':
+          centerView();
           break;
         case '+':
         case '=':
@@ -147,6 +150,7 @@ export const App: React.FC = () => {
     nextItem,
     prevItem,
     resetView,
+    centerView,
     setZoom,
     zoom,
     items,

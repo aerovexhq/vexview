@@ -47,6 +47,8 @@ export interface TransformParams {
   quality?: number;
   save?: boolean;
   overwrite?: boolean;
+  width?: number;
+  height?: number;
 }
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -281,6 +283,21 @@ export async function setDefaultMediaViewer(): Promise<void> {
   return await invoke<void>('set_default_media_viewer');
 }
 
+export interface CliLaunchOptions {
+  target: string | null;
+  targets: string[];
+  edit: boolean;
+  fullscreen: boolean;
+  slideshow: boolean;
+}
+
+export async function getCliOptions(): Promise<CliLaunchOptions> {
+  if (!isTauri) {
+    return { target: null, targets: [], edit: false, fullscreen: false, slideshow: false };
+  }
+  return await invoke<CliLaunchOptions>('get_cli_options');
+}
+
 export async function getCliTarget(): Promise<string | null> {
   if (!isTauri) return null;
   return await invoke<string | null>('get_cli_target');
@@ -317,6 +334,8 @@ export interface AnnotationsRequest {
   format?: string | null;
   quality?: number;
   save?: boolean;
+  width?: number;
+  height?: number;
 }
 
 export async function applyImageAnnotations(req: AnnotationsRequest): Promise<string> {
@@ -402,3 +421,16 @@ export async function extractBurstFrames(
     count,
   });
 }
+
+export async function copyImageToClipboard(path?: string, dataUrl?: string): Promise<void> {
+  if (!isTauri) {
+    if (dataUrl) {
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type || 'image/png']: blob })]);
+    }
+    return;
+  }
+  return await invoke<void>('copy_image_to_clipboard', { path, dataUrl });
+}
+

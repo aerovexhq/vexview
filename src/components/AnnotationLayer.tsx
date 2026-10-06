@@ -15,6 +15,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
   imageElement,
 }) => {
   const {
+    activeMode,
     activeSubTool,
     strokeColor,
     fillColor,
@@ -35,7 +36,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
   const [textInputValue, setTextInputValue] = useState('');
 
   const svgRef = useRef<SVGSVGElement>(null);
-  const isInteracting = activeSubTool !== 'select' && activeSubTool !== 'crop';
+  const isInteracting = activeMode === 'edit' && activeSubTool !== 'select' && activeSubTool !== 'crop';
 
   const toColorString = (rgba: [number, number, number, number], alphaOverride?: number) => {
     const a = alphaOverride !== undefined ? alphaOverride : rgba[3] / 255;
@@ -144,7 +145,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
   };
 
   const handlePointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isInteracting) return;
+    if (!isInteracting || e.button !== 0) return;
     e.stopPropagation();
 
     if (currentStroke && currentStroke.length > 0) {

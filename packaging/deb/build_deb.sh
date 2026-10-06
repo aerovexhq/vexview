@@ -12,9 +12,14 @@ echo "==> Building Debian package for ${PACKAGE_NAME} v${VERSION} (${ARCH})..."
 mkdir -p "${BUILD_ROOT}/DEBIAN"
 mkdir -p "${BUILD_ROOT}/usr/bin"
 mkdir -p "${BUILD_ROOT}/usr/share/applications"
-mkdir -p "${BUILD_ROOT}/usr/share/icons/hicolor/128x128/apps"
 mkdir -p "${BUILD_ROOT}/usr/share/icons/hicolor/32x32/apps"
+mkdir -p "${BUILD_ROOT}/usr/share/icons/hicolor/128x128/apps"
+mkdir -p "${BUILD_ROOT}/usr/share/icons/hicolor/256x256/apps"
+mkdir -p "${BUILD_ROOT}/usr/share/icons/hicolor/512x512/apps"
 mkdir -p "${BUILD_ROOT}/usr/share/icons/hicolor/scalable/apps"
+mkdir -p "${BUILD_ROOT}/usr/share/bash-completion/completions"
+mkdir -p "${BUILD_ROOT}/usr/share/zsh/vendor-completions"
+mkdir -p "${BUILD_ROOT}/usr/share/fish/vendor_completions.d"
 
 # Find or build release binary
 if [ -f "target/release/vexview-app" ]; then
@@ -30,9 +35,14 @@ fi
 
 install -m 755 "${BINARY_PATH}" "${BUILD_ROOT}/usr/bin/vexview"
 install -m 644 "packaging/vexview.desktop" "${BUILD_ROOT}/usr/share/applications/vexview.desktop"
-install -m 644 "src-tauri/icons/128x128.png" "${BUILD_ROOT}/usr/share/icons/hicolor/128x128/apps/vexview.png"
 install -m 644 "src-tauri/icons/32x32.png" "${BUILD_ROOT}/usr/share/icons/hicolor/32x32/apps/vexview.png"
+install -m 644 "src-tauri/icons/128x128.png" "${BUILD_ROOT}/usr/share/icons/hicolor/128x128/apps/vexview.png"
+install -m 644 "src-tauri/icons/128x128@2x.png" "${BUILD_ROOT}/usr/share/icons/hicolor/256x256/apps/vexview.png"
+install -m 644 "src-tauri/icons/icon.png" "${BUILD_ROOT}/usr/share/icons/hicolor/512x512/apps/vexview.png"
 install -m 644 "packaging/vexview.svg" "${BUILD_ROOT}/usr/share/icons/hicolor/scalable/apps/vexview.svg"
+install -m 644 "packaging/completions/vexview.bash" "${BUILD_ROOT}/usr/share/bash-completion/completions/vexview"
+install -m 644 "packaging/completions/_vexview" "${BUILD_ROOT}/usr/share/zsh/vendor-completions/_vexview"
+install -m 644 "packaging/completions/vexview.fish" "${BUILD_ROOT}/usr/share/fish/vendor_completions.d/vexview.fish"
 
 # Control file
 cat <<EOF > "${BUILD_ROOT}/DEBIAN/control"

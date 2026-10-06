@@ -12,7 +12,7 @@ const getSafeArea = (viewportEl: HTMLElement) => {
   // Find top bar element
   const topEl = (viewportEl.querySelector('[data-role="tool-palette"]') ||
     document.querySelector('[data-role="tool-palette"]')) as HTMLElement | null;
-  let topBarrier = 58;
+  let topBarrier = 0;
   if (topEl) {
     const topRect = topEl.getBoundingClientRect();
     topBarrier = Math.max(0, topRect.bottom - viewportRect.top);
@@ -82,6 +82,8 @@ export const Viewport: React.FC = () => {
     updateVideoParams,
     undoAnnotation,
     redoAnnotation,
+    copyNotice,
+    copyCurrentToClipboard,
   } = useViewerStore();
 
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -115,6 +117,11 @@ export const Viewport: React.FC = () => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
 
       if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'c' || e.key === 'C') {
+          e.preventDefault();
+          copyCurrentToClipboard();
+          return;
+        }
         if (e.key === 'z' || e.key === 'Z') {
           e.preventDefault();
           if (e.shiftKey) {
@@ -217,7 +224,7 @@ export const Viewport: React.FC = () => {
     return () => setCenterViewAction(null);
   }, [centerAndFitMedia, setCenterViewAction]);
 
-  // Initial auto-centering on media change
+  // Initial auto-centering on media change or mode change
   useEffect(() => {
     if (current) {
       const timer = setTimeout(() => {
@@ -225,7 +232,7 @@ export const Viewport: React.FC = () => {
       }, 50);
       return () => clearTimeout(timer);
     }
-  }, [current?.path, centerAndFitMedia]);
+  }, [current?.path, activeMode, centerAndFitMedia]);
 
   // Re-fit on window resize
   useEffect(() => {
@@ -236,7 +243,7 @@ export const Viewport: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, [centerAndFitMedia]);
 
-  // Non-passive wheel listener: Alt+Scroll to zoom, normal scroll to pan (up/down/left/right)
+  // Non-passive wheel listener: cursor-anchored zoom by default and with Alt/Ctrl; Shift or horizontal to pan
   useEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
@@ -244,37 +251,13 @@ export const Viewport: React.FC = () => {
     const handleWheelNative = (e: WheelEvent) => {
       e.preventDefault();
 
-      const isZoom = e.altKey || e.ctrlKey;
+      const isShiftPan = e.shiftKey;
+      const isPureHorizontalPan = Math.abs(e.deltaX) > 0 && Math.abs(e.deltaY) === 0;
 
-      if (isZoom) {
-        // Alt+Scroll (or Ctrl+Scroll): smooth cursor-anchored zoom
-        const factor = e.deltaY < 0 ? 1.15 : 0.85;
-        const currentZoom = zoomRef.current;
-        const currentPan = panRef.current;
-        const newZoom = Math.max(0.05, Math.min(currentZoom * factor, 32.0));
-
-        if (newZoom !== currentZoom && el) {
-          const rect = el.getBoundingClientRect();
-          const offsetX = e.clientX - (rect.left + rect.width / 2);
-          const offsetY = e.clientY - (rect.top + rect.height / 2);
-          const scaleRatio = newZoom / currentZoom;
-          const newPanX = offsetX - (offsetX - currentPan.x) * scaleRatio;
-          const newPanY = offsetY - (offsetY - currentPan.y) * scaleRatio;
-
-          const updatedPan = { x: Math.round(newPanX), y: Math.round(newPanY) };
-          panRef.current = updatedPan;
-          zoomRef.current = newZoom;
-
-          if (canvasRef.current) {
-            canvasRef.current.style.transform = `translate3d(${updatedPan.x}px, ${updatedPan.y}px, 0px) scale(${newZoom})`;
-          }
-
-          setZoomAndPan(newZoom, updatedPan);
-        }
-      } else {
-        // Normal scroll: pan up/down/left/right
-        const deltaX = e.shiftKey ? e.deltaY : e.deltaX;
-        const deltaY = e.shiftKey ? 0 : e.deltaY;
+      if (isShiftPan || isPureHorizontalPan) {
+        // Shift+Scroll or horizontal trackpad scroll: pan
+        const deltaX = isShiftPan ? e.deltaY : e.deltaX;
+        const deltaY = isShiftPan ? 0 : e.deltaY;
 
         const newPanX = Math.round(panRef.current.x - deltaX);
         const newPanY = Math.round(panRef.current.y - deltaY);
@@ -287,6 +270,32 @@ export const Viewport: React.FC = () => {
         }
 
         setPan(updatedPan);
+        return;
+      }
+
+      // Smooth cursor-anchored zoom on scroll wheel, Alt+scroll, Ctrl+scroll
+      const factor = e.deltaY < 0 ? 1.15 : 0.85;
+      const currentZoom = zoomRef.current;
+      const currentPan = panRef.current;
+      const newZoom = Math.max(0.05, Math.min(currentZoom * factor, 32.0));
+
+      if (newZoom !== currentZoom && el) {
+        const rect = el.getBoundingClientRect();
+        const offsetX = e.clientX - (rect.left + rect.width / 2);
+        const offsetY = e.clientY - (rect.top + rect.height / 2);
+        const scaleRatio = newZoom / currentZoom;
+        const newPanX = offsetX - (offsetX - currentPan.x) * scaleRatio;
+        const newPanY = offsetY - (offsetY - currentPan.y) * scaleRatio;
+
+        const updatedPan = { x: Math.round(newPanX), y: Math.round(newPanY) };
+        panRef.current = updatedPan;
+        zoomRef.current = newZoom;
+
+        if (canvasRef.current) {
+          canvasRef.current.style.transform = `translate3d(${updatedPan.x}px, ${updatedPan.y}px, 0px) scale(${newZoom})`;
+        }
+
+        setZoomAndPan(newZoom, updatedPan);
       }
     };
 
@@ -296,10 +305,13 @@ export const Viewport: React.FC = () => {
     };
   }, [setZoomAndPan, setPan]);
 
-  // Pointer drag pan
+  // Pointer drag pan: left-click in view mode or select tool; right-click in any mode (including edit mode)
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
-    if (activeSubTool !== 'select') return;
+    const isRightClick = e.button === 2;
+    const isLeftClick = e.button === 0;
+
+    const canPan = isRightClick || (isLeftClick && (activeMode !== 'edit' || activeSubTool === 'select'));
+    if (!canPan) return;
     if ((e.target as HTMLElement).closest(`.${styles.splitHandle}`)) return;
     if ((e.target as HTMLElement).closest(`.${styles.buttonGroup}`)) return;
 
@@ -522,9 +534,20 @@ export const Viewport: React.FC = () => {
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
       onDoubleClick={handleDoubleClick}
+      onContextMenu={(e) => e.preventDefault()}
     >
-      {/* Floating Studio Tool Palette */}
-      <ToolPalette />
+      {/* Floating Studio Tool Palette: only visible in edit mode */}
+      {activeMode === 'edit' && !isVideo && <ToolPalette />}
+
+      {/* Copy to Clipboard Notification Toast */}
+      {copyNotice && (
+        <div className={styles.copyToast}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <span>Copied image to clipboard</span>
+        </div>
+      )}
 
       {loading && !displaySrc && (
         <div style={{ position: 'absolute', color: '#94a3b8', fontSize: '12px' }}>

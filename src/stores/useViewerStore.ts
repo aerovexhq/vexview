@@ -9,6 +9,7 @@ import {
   probeVideo,
   openFileDialog,
   openFolderDialog,
+  copyImageToClipboard,
 } from '../lib/ipc';
 
 export type ActiveSubTool =
@@ -42,6 +43,7 @@ export interface EditorState {
   filter: 'none' | 'grayscale' | 'invert' | 'sepia';
   quality: number;
   exportFormat: 'same' | 'png' | 'jpg' | 'webp' | 'bmp' | 'tiff';
+  exportScale: number;
   overwrite: boolean;
   splitPosition: number;
   previewUrl: string | null;
@@ -99,6 +101,7 @@ interface ViewerStore {
   activeMode: 'view' | 'edit' | 'trim';
   showFilmstrip: boolean;
   showInspector: boolean;
+  isSlideshowActive: boolean;
 
   // Video playback & trim
   isPlaying: boolean;
@@ -148,6 +151,8 @@ interface ViewerStore {
   setActiveMode: (mode: 'view' | 'edit' | 'trim') => void;
   toggleFilmstrip: () => void;
   toggleInspector: () => void;
+  setSlideshow: (active: boolean) => void;
+  toggleSlideshow: () => void;
   setIsPlaying: (playing: boolean) => void;
   setCurrentTime: (time: number) => void;
   setDuration: (duration: number) => void;
@@ -158,6 +163,8 @@ interface ViewerStore {
   openMediaFile: () => Promise<void>;
   openTargetFile: (filePath: string) => Promise<void>;
   openMediaFolder: () => Promise<void>;
+  copyNotice: boolean;
+  copyCurrentToClipboard: () => Promise<void>;
 
   // Annotation Actions
   setActiveSubTool: (tool: ActiveSubTool) => void;
@@ -205,6 +212,7 @@ const initialEditorState: EditorState = {
   filter: 'none',
   quality: 90,
   exportFormat: 'same',
+  exportScale: 1.0,
   overwrite: false,
   splitPosition: 50,
   previewUrl: null,
@@ -244,6 +252,7 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
   activeMode: 'view',
   showFilmstrip: true,
   showInspector: false,
+  isSlideshowActive: false,
 
   isPlaying: false,
   currentTime: 0,
@@ -371,6 +380,8 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
   setActiveMode: (activeMode) => set({ activeMode }),
   toggleFilmstrip: () => set((s) => ({ showFilmstrip: !s.showFilmstrip })),
   toggleInspector: () => set((s) => ({ showInspector: !s.showInspector })),
+  setSlideshow: (isSlideshowActive) => set({ isSlideshowActive }),
+  toggleSlideshow: () => set((s) => ({ isSlideshowActive: !s.isSlideshowActive })),
 
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setCurrentTime: (currentTime) => set({ currentTime }),
@@ -381,6 +392,25 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
   updateEditor: (partial) =>
     set((s) => ({ editor: { ...s.editor, ...partial } })),
   resetEditor: () => set({ editor: initialEditorState }),
+
+  copyNotice: false,
+  copyCurrentToClipboard: async () => {
+    const { items, currentIndex, activeMode, editor } = get();
+    const current = items[currentIndex];
+    if (!current || current.media_type === 'Video') return;
+    try {
+      await copyImageToClipboard(
+        current.path,
+        activeMode === 'edit' && editor.previewUrl ? editor.previewUrl : undefined,
+      );
+      set({ copyNotice: true });
+      setTimeout(() => {
+        set({ copyNotice: false });
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err);
+    }
+  },
 
   // Annotation Actions
   setActiveSubTool: (activeSubTool) => set({ activeSubTool }),

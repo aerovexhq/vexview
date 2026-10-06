@@ -1,6 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useViewerStore } from '../stores/useViewerStore';
-import { convertMediaFile, saveFileDialog } from '../lib/ipc';
 import styles from './FileTypeBadge.module.css';
 
 interface FormatConfig {
@@ -13,11 +12,6 @@ interface FormatConfig {
 export const FileTypeBadge: React.FC = () => {
   const { items, currentIndex, activeMode } = useViewerStore();
   const current = items[currentIndex];
-
-  const [isConvertOpen, setIsConvertOpen] = useState(false);
-  const [targetFormat, setTargetFormat] = useState<'png' | 'jpg' | 'webp' | 'bmp' | 'ico' | 'tiff'>('png');
-  const [targetSize, setTargetSize] = useState<number | null>(null);
-  const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   const fileExt = useMemo(() => {
     if (!current?.path) return '';
@@ -209,40 +203,6 @@ export const FileTypeBadge: React.FC = () => {
 
   if (!current || activeMode !== 'view') return null;
 
-  const handleConvert = async () => {
-    if (!current?.path) return;
-    try {
-      const baseName = current.path.split('/').pop()?.split('.')[0] || 'converted';
-      const defaultName = `${baseName}_converted.${targetFormat}`;
-      const dest = await saveFileDialog(
-        defaultName,
-        `${targetFormat.toUpperCase()} Image`,
-        [targetFormat],
-      );
-
-      if (!dest) return;
-
-      setStatusMsg('Converting...');
-      await convertMediaFile(
-        current.path,
-        dest,
-        targetFormat,
-        targetSize || undefined,
-        targetSize || undefined,
-        90,
-      );
-
-      setStatusMsg('Saved!');
-      setTimeout(() => {
-        setStatusMsg(null);
-        setIsConvertOpen(false);
-      }, 1500);
-    } catch (err) {
-      setStatusMsg(`Error: ${err}`);
-      setTimeout(() => setStatusMsg(null), 3000);
-    }
-  };
-
   return (
     <div className={styles.badgeWrapper}>
       <div className={styles.badgePill}>
@@ -260,84 +220,7 @@ export const FileTypeBadge: React.FC = () => {
             {formattedSize || 'Media'}
           </span>
         </div>
-
-        {/* Built-in format conversion trigger */}
-        {current.media_type !== 'Video' && (
-          <button
-            className={styles.convertTriggerBtn}
-            onClick={() => setIsConvertOpen(!isConvertOpen)}
-            title="Convert image format..."
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4" />
-              <polyline points="10 9 15 4 20 9" />
-              <line x1="15" y1="4" x2="15" y2="16" />
-            </svg>
-            Convert
-          </button>
-        )}
       </div>
-
-      {/* Built-in Format Conversion Panel */}
-      {isConvertOpen && (
-        <div className={styles.convertModal}>
-          <div className={styles.convertHeader}>
-            <span className={styles.convertTitle}>Convert Format</span>
-            <button
-              className={styles.closeSmallBtn}
-              onClick={() => setIsConvertOpen(false)}
-            >
-              ✕
-            </button>
-          </div>
-
-          <div className={styles.fieldGroup}>
-            <span className={styles.fieldLabel}>Target Format</span>
-            <div className={styles.formatPills}>
-              {(['png', 'jpg', 'webp', 'bmp', 'ico', 'tiff'] as const).map((fmt) => (
-                <button
-                  key={fmt}
-                  className={`${styles.formatPill} ${targetFormat === fmt ? styles.active : ''}`}
-                  onClick={() => setTargetFormat(fmt)}
-                >
-                  {fmt.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Size presets especially great for SVGs / Icons */}
-          <div className={styles.fieldGroup}>
-            <span className={styles.fieldLabel}>Resolution</span>
-            <div className={styles.formatPills}>
-              {[
-                { label: 'Native', size: null },
-                { label: '512×512', size: 512 },
-                { label: '256×256', size: 256 },
-                { label: '128×128', size: 128 },
-                { label: '64×64', size: 64 },
-                { label: '32×32', size: 32 },
-              ].map(({ label, size }) => (
-                <button
-                  key={label}
-                  className={`${styles.formatPill} ${targetSize === size ? styles.active : ''}`}
-                  onClick={() => setTargetSize(size)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {statusMsg && <div className={styles.statusToast}>{statusMsg}</div>}
-
-          <div className={styles.actionRow}>
-            <button className={styles.exportBtn} onClick={handleConvert}>
-              Export {targetFormat.toUpperCase()}...
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

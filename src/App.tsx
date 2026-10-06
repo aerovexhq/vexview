@@ -9,7 +9,7 @@ import { InspectorModal } from './components/InspectorModal';
 import { SettingsModal } from './components/SettingsModal';
 import { FileTypeBadge } from './components/FileTypeBadge';
 import { useViewerStore } from './stores/useViewerStore';
-import { getCliTarget } from './lib/ipc';
+import { getCliOptions } from './lib/ipc';
 import styles from './App.module.css';
 
 export const App: React.FC = () => {
@@ -31,24 +31,43 @@ export const App: React.FC = () => {
     toggleInspector,
     openMediaFile,
     openTargetFile,
+    copyCurrentToClipboard,
+    isSlideshowActive,
+    setSlideshow,
+    toggleSlideshow,
   } = useViewerStore();
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Load CLI target or current directory on initial mount
+  // Load CLI options or current directory on initial mount
   useEffect(() => {
-    getCliTarget()
-      .then((target) => {
-        if (target) {
-          openTargetFile(target);
-        } else {
-          loadFolder('.');
-        }
+    getCliOptions()
+      .then((opts) => {
+        const loadPromise = opts.target
+          ? openTargetFile(opts.target)
+          : loadFolder('.');
+        loadPromise.finally(() => {
+          if (opts.edit) {
+            setActiveMode('edit');
+          }
+          if (opts.slideshow) {
+            setSlideshow(true);
+          }
+        });
       })
       .catch(() => {
         loadFolder('.');
       });
-  }, [loadFolder, openTargetFile]);
+  }, [loadFolder, openTargetFile, setActiveMode, setSlideshow]);
+
+  // Slideshow auto-advance interval
+  useEffect(() => {
+    if (!isSlideshowActive) return;
+    const interval = setInterval(() => {
+      nextItem();
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [isSlideshowActive, nextItem]);
 
   // Listen to open-settings event from system tray
   useEffect(() => {
@@ -73,6 +92,12 @@ export const App: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if user is typing in an input
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+        e.preventDefault();
+        copyCurrentToClipboard();
         return;
       }
 
@@ -138,7 +163,15 @@ export const App: React.FC = () => {
         case 'B':
           toggleFilmstrip();
           break;
+        case 's':
+        case 'S':
+        case 'F5':
+          toggleSlideshow();
+          break;
         case 'Escape':
+          if (isSlideshowActive) {
+            setSlideshow(false);
+          }
           setActiveMode('view');
           break;
       }
@@ -161,6 +194,9 @@ export const App: React.FC = () => {
     setActiveMode,
     toggleFilmstrip,
     toggleInspector,
+    toggleSlideshow,
+    isSlideshowActive,
+    setSlideshow,
   ]);
 
   return (

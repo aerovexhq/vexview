@@ -1,91 +1,49 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <!-- Background Squircle Gradient -->
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#181a24"/>
-      <stop offset="40%" stop-color="#10121a"/>
-      <stop offset="100%" stop-color="#08090d"/>
-    </linearGradient>
-
-    <!-- Squircle Border Stroke Gradient -->
-    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#5a6b8c" stop-opacity="0.8"/>
-      <stop offset="30%" stop-color="#2e374d" stop-opacity="0.4"/>
-      <stop offset="100%" stop-color="#161b26" stop-opacity="0.9"/>
-    </linearGradient>
-
-    <!-- Blade Alternating Gradients -->
-    <linearGradient id="bgrad_0" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#283044"/>
-      <stop offset="50%" stop-color="#1d2332"/>
-      <stop offset="100%" stop-color="#141824"/>
-    </linearGradient>
-    <linearGradient id="bgrad_1" x1="0%" y1="100%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#232a3c"/>
-      <stop offset="50%" stop-color="#191e2b"/>
-      <stop offset="100%" stop-color="#10131d"/>
-    </linearGradient>
-
-    <!-- Glowing Amber Core Linear Gradient -->
-    <linearGradient id="amberCore" x1="0%" y1="0%" x2="100%" y2="100%">
+    <!-- Vibrant Glowing Amber Gradient -->
+    <linearGradient id="amberCore" x1="12%" y1="0%" x2="88%" y2="100%">
       <stop offset="0%" stop-color="#fef08a"/>
-      <stop offset="30%" stop-color="#f59e0b"/>
-      <stop offset="70%" stop-color="#d97706"/>
+      <stop offset="20%" stop-color="#fbbf24"/>
+      <stop offset="55%" stop-color="#f59e0b"/>
+      <stop offset="85%" stop-color="#d97706"/>
       <stop offset="100%" stop-color="#92400e"/>
     </linearGradient>
 
-    <!-- Core Pupil Radial Gradient -->
-    <radialGradient id="coreRadial" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="30%" stop-color="#fde68a"/>
-      <stop offset="60%" stop-color="#f59e0b"/>
-      <stop offset="100%" stop-color="#b45309"/>
-    </radialGradient>
-
-    <!-- Lens Glass Reflection Curve -->
-    <linearGradient id="glassSheen" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.24"/>
-      <stop offset="30%" stop-color="#38bdf8" stop-opacity="0.08"/>
-      <stop offset="65%" stop-color="#ffffff" stop-opacity="0.0"/>
+    <!-- Radiant Precision Rim Stroke -->
+    <linearGradient id="goldRim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="30%" stop-color="#fef08a" stop-opacity="0.90"/>
+      <stop offset="70%" stop-color="#f59e0b" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#78350f" stop-opacity="0.90"/>
     </linearGradient>
+
+    <!-- Inner Bevel Highlight -->
+    <linearGradient id="innerBevel" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.45"/>
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.15"/>
+    </linearGradient>
+
+    <!-- Elevated App Icon Shadow -->
+    <filter id="iconShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000000" flood-opacity="0.40"/>
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
   </defs>
 
-  <!-- Squircle Base -->
-  <rect x="32" y="32" width="448" height="448" rx="112" fill="url(#bgGrad)" stroke="url(#borderGrad)" stroke-width="2.5"/>
+  <g filter="url(#iconShadow)">
+    <!-- Base Hexagon -->
+    <polygon points="480,256 368,450 144,450 32,256 144,62 368,62"
+             fill="url(#amberCore)"
+             stroke="url(#goldRim)"
+             stroke-width="12"
+             stroke-linejoin="round"/>
 
-  <!-- Subtle Outer Optical Scale -->
-  <circle cx="256" cy="256" r="186" fill="none" stroke="#252c3c" stroke-width="1.5" stroke-dasharray="3 6" opacity="0.65"/>
-  <circle cx="256" cy="256" r="168" fill="none" stroke="#30384c" stroke-width="1" opacity="0.5"/>
-
-  <!-- Precision Calibrations -->
-  <line x1="256" y1="64" x2="256" y2="80" stroke="#f59e0b" stroke-width="3" stroke-linecap="round"/>
-  <line x1="256" y1="432" x2="256" y2="448" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>
-  <line x1="64" y1="256" x2="80" y2="256" stroke="#64748b" stroke-width="2.5" stroke-linecap="round" opacity="0.75"/>
-  <line x1="432" y1="256" x2="448" y2="256" stroke="#64748b" stroke-width="2.5" stroke-linecap="round" opacity="0.75"/>
-
-  <!-- Outer Lens Barrel Ring -->
-  <circle cx="256" cy="256" r="154" fill="#0c0e14" stroke="#343e57" stroke-width="4"/>
-
-  <!-- Perfectly Tiled Aperture Blades -->
-  <g>
-    <path d="M 325.28,256.00 L 239.22,405.06 A 150.0 150.0 0 0 0 376.70,345.06 L 290.64,196.00 Z" fill="url(#bgrad_0)" stroke="#38435c" stroke-width="1.5" stroke-linejoin="round"/>
-    <path d="M 290.64,316.00 L 118.52,316.00 A 150.0 150.0 0 0 0 239.22,405.06 L 325.28,256.00 Z" fill="url(#bgrad_1)" stroke="#38435c" stroke-width="1.5" stroke-linejoin="round"/>
-    <path d="M 221.36,316.00 L 135.30,166.94 A 150.0 150.0 0 0 0 118.52,316.00 L 290.64,316.00 Z" fill="url(#bgrad_0)" stroke="#38435c" stroke-width="1.5" stroke-linejoin="round"/>
-    <path d="M 186.72,256.00 L 272.78,106.94 A 150.0 150.0 0 0 0 135.30,166.94 L 221.36,316.00 Z" fill="url(#bgrad_1)" stroke="#38435c" stroke-width="1.5" stroke-linejoin="round"/>
-    <path d="M 221.36,196.00 L 393.48,196.00 A 150.0 150.0 0 0 0 272.78,106.94 L 186.72,256.00 Z" fill="url(#bgrad_0)" stroke="#38435c" stroke-width="1.5" stroke-linejoin="round"/>
-    <path d="M 290.64,196.00 L 376.70,345.06 A 150.0 150.0 0 0 0 393.48,196.00 L 221.36,196.00 Z" fill="url(#bgrad_1)" stroke="#38435c" stroke-width="1.5" stroke-linejoin="round"/>
+    <!-- Subtle Inner Bevel for Tactile Depth -->
+    <polygon points="474,256 365,445 147,445 38,256 147,67 365,67"
+             fill="url(#innerBevel)"
+             stroke="rgba(255, 255, 255, 0.2)"
+             stroke-width="1"
+             stroke-linejoin="round"/>
   </g>
-
-  <!-- Center Hexagonal Opening with Amber Glow Fill -->
-  <polygon points="325.28,256.00 290.64,316.00 221.36,316.00 186.72,256.00 221.36,196.00 290.64,196.00" fill="#f59e0b" stroke="#fbbf24" stroke-width="2.5"/>
-
-  <!-- Concentric Inner Pupil Lens Elements -->
-  <circle cx="256" cy="256" r="48" fill="#d97706" stroke="#fef08a" stroke-width="1.5" opacity="0.85"/>
-  <circle cx="256" cy="256" r="34" fill="#b45309"/>
-  <circle cx="256" cy="256" r="24" fill="#f59e0b"/>
-  <circle cx="256" cy="256" r="14" fill="#ffffff" opacity="0.95"/>
-  <circle cx="256" cy="256" r="6" fill="#fef3c7"/>
-
-  <!-- Top-left Lens Glass Reflection Curve -->
-  <path d="M 132 170 C 165 125 215 110 270 110 C 205 125 160 170 140 230 C 134 208 132 188 132 170 Z" fill="url(#glassSheen)"/>
 </svg>

@@ -1,0 +1,24 @@
+#compdef vexview
+
+_vexview() {
+    local -a media_files
+    media_files=(
+        '*:media file:_files -g "*.(#i)(png|jpg|jpeg|webp|svg|gif|bmp|avif|tiff|ico|mp4|mkv|webm|mov|avi|flv|wmv)(-.)"'
+    )
+
+    _arguments -s -S \
+        '(-h --help)'{-h,--help}'[Print help information]' \
+        '(-V --version)'{-V,--version}'[Print version information]' \
+        '(-e --edit)'{-e,--edit}'[Open directly in edit and annotation mode]' \
+        '(-f --fullscreen)'{-f,--fullscreen}'[Launch application in fullscreen mode]' \
+        '(-s --slideshow)'{-s,--slideshow}'[Start slideshow mode immediately]' \
+        '(-i --info)'{-i,--info}'[Inspect media metadata in terminal and exit]' \
+        '(-c --convert)'{-c,--convert}'[Convert input image to output format]:output file:_files' \
+        '(-q --quality)'{-q,--quality}'[Compression quality (1-100)]:quality:(100 95 90 85 80 75 50)' \
+        '--width[Target width in pixels for resize]:width:(1920 1280 1080 800 640 512 256 128)' \
+        '--height[Target height in pixels for resize]:height:(1920 1280 1080 800 640 512 256 128)' \
+        '--completions[Generate shell completion script]:shell:(bash zsh fish powershell)' \
+        $media_files
+}
+
+_vexview "$@"

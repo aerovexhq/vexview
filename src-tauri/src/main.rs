@@ -1,12 +1,15 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod cli;
+
 use base64::prelude::*;
 use vex_core::{MediaItem, ScanFilter};
 use vex_edit::ExportFormat;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 use std::path::Path;
+use std::sync::OnceLock;
 
 #[derive(Serialize, Deserialize)]
 pub struct ImageDetailResponse {
@@ -37,6 +40,8 @@ pub struct TransformRequest {
     pub quality: Option<u8>,
     pub save: Option<bool>,
     pub overwrite: Option<bool>,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -269,7 +274,14 @@ fn apply_image_transforms(req: TransformRequest) -> Result<String, String> {
             next_to.to_string_lossy().to_string()
         };
 
-        vex_edit::export_image(&current, &dest, fmt, req.quality)
+        let mut final_img = current;
+        if let (Some(w), Some(h)) = (req.width, req.height) {
+            if w > 0 && h > 0 {
+                final_img = final_img.resize_exact(w, h, image::imageops::FilterType::Lanczos3);
+            }
+        }
+
+        vex_edit::export_image(&final_img, &dest, fmt, req.quality)
             .map_err(|e| format!("Failed to export image: {}", e))?;
         return Ok(dest);
     }
@@ -408,6 +420,8 @@ pub struct AnnotationsRequest {
     pub format: Option<String>,
     pub quality: Option<u8>,
     pub save: Option<bool>,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
 }
 
 #[tauri::command]
@@ -441,7 +455,14 @@ fn apply_image_annotations(req: AnnotationsRequest) -> Result<String, String> {
             next_to.to_string_lossy().to_string()
         };
 
-        vex_edit::export_image(&rendered, &dest, fmt, req.quality)
+        let mut final_img = rendered;
+        if let (Some(w), Some(h)) = (req.width, req.height) {
+            if w > 0 && h > 0 {
+                final_img = final_img.resize_exact(w, h, image::imageops::FilterType::Lanczos3);
+            }
+        }
+
+        vex_edit::export_image(&final_img, &dest, fmt, req.quality)
             .map_err(|e| format!("Failed to export annotated image: {}", e))?;
         return Ok(dest);
     }
@@ -572,6 +593,50 @@ async fn save_file_dialog(
 }
 
 #[tauri::command]
+async fn copy_image_to_clipboard(
+    path: Option<String>,
+    data_url: Option<String>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let img = if let Some(d) = data_url.filter(|s| !s.trim().is_empty()) {
+            let b64 = if let Some(idx) = d.find(',') {
+                &d[idx + 1..]
+            } else {
+                &d
+            };
+            let bytes = BASE64_STANDARD
+                .decode(b64.trim())
+                .map_err(|e| format!("Base64 decode error: {}", e))?;
+            image::load_from_memory(&bytes)
+                .map_err(|e| format!("Image decode error: {}", e))?
+        } else if let Some(p) = path.filter(|s| !s.trim().is_empty()) {
+            let clean = clean_file_path(&p);
+            let loaded = vex_image::load_image(&clean)
+                .map_err(|e| format!("Failed to load image: {}", e))?;
+            loaded.image
+        } else {
+            return Err("No path or image data provided".into());
+        };
+
+        let rgba = img.to_rgba8();
+        let (width, height) = rgba.dimensions();
+        let img_data = arboard::ImageData {
+            width: width as usize,
+            height: height as usize,
+            bytes: std::borrow::Cow::Borrowed(&rgba),
+        };
+        let mut clipboard = arboard::Clipboard::new()
+            .map_err(|e| format!("Clipboard error: {}", e))?;
+        clipboard
+            .set_image(img_data)
+            .map_err(|e| format!("Failed to set clipboard image: {}", e))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Task spawn error: {}", e))?
+}
+
+#[tauri::command]
 fn set_default_media_viewer() -> Result<(), String> {
     let mimes = [
         "image/png",
@@ -642,9 +707,16 @@ fn save_viewer_config(config: vex_core::ViewerConfig) -> Result<(), String> {
         .map_err(|e| format!("Failed to save config: {}", e))
 }
 
+static CLI_OPTIONS: OnceLock<cli::CliLaunchOptions> = OnceLock::new();
+
 #[tauri::command]
 fn get_cli_target() -> Option<String> {
-    std::env::args().skip(1).find(|arg| !arg.starts_with('-'))
+    CLI_OPTIONS.get().and_then(|o| o.target.clone())
+}
+
+#[tauri::command]
+fn get_cli_options() -> cli::CliLaunchOptions {
+    CLI_OPTIONS.get().cloned().unwrap_or_default()
 }
 
 #[tauri::command]
@@ -654,6 +726,60 @@ fn exit_application(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 fn main() {
+    let args = cli::parse_args(std::env::args());
+
+    if args.help {
+        cli::print_help();
+        std::process::exit(0);
+    }
+
+    if args.version {
+        cli::print_version();
+        std::process::exit(0);
+    }
+
+    if let Some(shell) = &args.completions {
+        match cli::generate_completions(shell) {
+            Ok(script) => {
+                print!("{}", script);
+                std::process::exit(0);
+            }
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
+
+    if args.info {
+        if let Some(target) = args.targets.first() {
+            if let Err(e) = cli::execute_info(target) {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+            std::process::exit(0);
+        } else {
+            eprintln!("Error: --info requires a target media file path.");
+            std::process::exit(1);
+        }
+    }
+
+    if let Some(out_path) = &args.convert {
+        if let Some(in_path) = args.targets.first() {
+            if let Err(e) = cli::execute_convert(in_path, out_path, args.quality, args.width, args.height) {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+            std::process::exit(0);
+        } else {
+            eprintln!("Error: --convert requires an input media file path.");
+            std::process::exit(1);
+        }
+    }
+
+    let launch_options = args.to_launch_options();
+    let _ = CLI_OPTIONS.set(launch_options.clone());
+
     #[cfg(target_os = "linux")]
     {
         if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
@@ -663,11 +789,16 @@ fn main() {
 
     env_logger::init();
 
+    let fullscreen_flag = launch_options.fullscreen;
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .setup(|app| {
+        .setup(move |app| {
             use tauri::Manager;
             if let Some(window) = app.get_webview_window("main") {
+                if fullscreen_flag {
+                    let _ = window.set_fullscreen(true);
+                }
                 let _ = window.show();
                 let _ = window.set_focus();
             }
@@ -699,6 +830,7 @@ fn main() {
             save_file_dialog,
             set_default_media_viewer,
             get_cli_target,
+            get_cli_options,
             get_viewer_config,
             save_viewer_config,
             exit_application,
@@ -706,6 +838,7 @@ fn main() {
             process_video_advanced,
             extract_video_audio,
             extract_burst_frames,
+            copy_image_to_clipboard,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

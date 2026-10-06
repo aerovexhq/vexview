@@ -83,14 +83,36 @@ fi
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "${APPS_DIR}" 2>/dev/null || true
 command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f "${ICON_DIR}" 2>/dev/null || true
 
+# Install shell completions
+if [ "$(id -u)" -eq 0 ]; then
+    BASH_COMP_DIR="/usr/share/bash-completion/completions"
+    FISH_COMP_DIR="/usr/share/fish/vendor_completions.d"
+else
+    BASH_COMP_DIR="${HOME}/.local/share/bash-completion/completions"
+    FISH_COMP_DIR="${HOME}/.config/fish/completions"
+fi
+
+mkdir -p "${BASH_COMP_DIR}" 2>/dev/null || true
+"${BIN_DIR}/${APP_NAME}" --completions bash > "${BASH_COMP_DIR}/${APP_NAME}" 2>/dev/null || true
+
+mkdir -p "${FISH_COMP_DIR}" 2>/dev/null || true
+"${BIN_DIR}/${APP_NAME}" --completions fish > "${FISH_COMP_DIR}/${APP_NAME}.fish" 2>/dev/null || true
+
 echo ""
 echo "=========================================================="
-echo "  ✓ Installation complete!"
+echo "  Installation complete!"
 echo "  Executable: ${BIN_DIR}/${APP_NAME}"
 echo "  Desktop entry: ${APPS_DIR}/${APP_NAME}.desktop"
+echo "  Shell completion: ${BASH_COMP_DIR}/${APP_NAME}"
 echo ""
 echo "  You can launch it from your application launcher or by running:"
 echo "    vexview [path/to/media]"
+echo ""
+echo "  CLI usage:"
+echo "    vexview --help"
+echo "    vexview -e [image]      # Open directly in edit mode"
+echo "    vexview -i [media]      # Inspect metadata in terminal"
+echo "    vexview [in] -c [out]   # Convert image headlessly"
 echo ""
 echo "  To uninstall: ${BIN_DIR}/${APP_NAME} --uninstall (or re-run installer with --uninstall)"
 echo "=========================================================="

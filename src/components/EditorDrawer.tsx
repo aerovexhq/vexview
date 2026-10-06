@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useViewerStore, EditorState } from '../stores/useViewerStore';
 import {
   applyTransforms,
+  applyImageAnnotations,
   pickAudioFile,
   composeVideoSequence,
   saveFileDialog,
@@ -25,6 +26,13 @@ const FORMAT_OPTIONS: SelectOption<EditorState['exportFormat']>[] = [
   { value: 'webp', label: 'WebP (Modern Compact)' },
   { value: 'bmp', label: 'BMP (Bitmap)' },
   { value: 'tiff', label: 'TIFF' },
+];
+
+const SCALE_OPTIONS: SelectOption<number>[] = [
+  { value: 1.0, label: '100% (Original Resolution)' },
+  { value: 0.75, label: '75% (Scaled)' },
+  { value: 0.5, label: '50% (Half Size)' },
+  { value: 0.25, label: '25% (Quarter Size)' },
 ];
 
 const SEQUENCE_QUALITY_OPTIONS: SelectOption<'high' | 'medium' | 'small'>[] = [
@@ -64,6 +72,8 @@ export const EditorDrawer: React.FC = () => {
     updateAudioVolume,
     setAudioMode,
     openTargetFile,
+    imageDetail,
+    annotations,
   } = useViewerStore();
 
   const current = items[currentIndex];
@@ -89,24 +99,46 @@ export const EditorDrawer: React.FC = () => {
     setIsSaving(true);
     try {
       const format = editor.exportFormat === 'same' ? undefined : editor.exportFormat;
-      const res = await applyTransforms({
-        path: current.path,
-        rotation: editor.rotation,
-        flip_h: editor.flipH,
-        flip_v: editor.flipV,
-        crop: editor.crop || undefined,
-        brightness: editor.brightness,
-        contrast: editor.contrast,
-        blur: editor.blur,
-        saturation: editor.saturation,
-        warmth: editor.warmth,
-        filter: editor.filter === 'none' ? undefined : editor.filter,
-        format,
-        quality: editor.quality,
-        save: true,
-        overwrite: !customPath && editor.overwrite,
-        destination: customPath,
-      });
+      const origW = imageDetail?.width;
+      const origH = imageDetail?.height;
+      const targetW = origW && editor.exportScale !== 1.0 ? Math.round(origW * editor.exportScale) : undefined;
+      const targetH = origH && editor.exportScale !== 1.0 ? Math.round(origH * editor.exportScale) : undefined;
+
+      let res: string;
+      if (annotations && annotations.length > 0) {
+        res = await applyImageAnnotations({
+          path: current.path,
+          annotations,
+          destination: customPath,
+          overwrite: !customPath && editor.overwrite,
+          format,
+          quality: editor.quality,
+          save: true,
+          width: targetW,
+          height: targetH,
+        });
+      } else {
+        res = await applyTransforms({
+          path: current.path,
+          rotation: editor.rotation,
+          flip_h: editor.flipH,
+          flip_v: editor.flipV,
+          crop: editor.crop || undefined,
+          brightness: editor.brightness,
+          contrast: editor.contrast,
+          blur: editor.blur,
+          saturation: editor.saturation,
+          warmth: editor.warmth,
+          filter: editor.filter === 'none' ? undefined : editor.filter,
+          format,
+          quality: editor.quality,
+          save: true,
+          overwrite: !customPath && editor.overwrite,
+          destination: customPath,
+          width: targetW,
+          height: targetH,
+        });
+      }
 
       if (editor.overwrite && !customPath) {
         showStatus(`Overwritten original file: ${res}`);
@@ -475,6 +507,24 @@ export const EditorDrawer: React.FC = () => {
             {/* Export Format & Compression */}
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Export & Quality</div>
+
+              {/* Output Resolution & Aspect-Preserving Scaling */}
+              <div className={styles.sliderRow}>
+                <div className={styles.sliderHeader}>
+                  <span>Output Resolution</span>
+                  {imageDetail && (
+                    <span className={`${styles.sliderValue} tabular-nums`}>
+                      {Math.round(imageDetail.width * editor.exportScale)} × {Math.round(imageDetail.height * editor.exportScale)}
+                    </span>
+                  )}
+                </div>
+                <Select<number>
+                  value={editor.exportScale}
+                  options={SCALE_OPTIONS}
+                  onChange={(scale) => updateEditor({ exportScale: scale })}
+                  ariaLabel="Output resolution scale"
+                />
+              </div>
 
               <div className={styles.sliderRow}>
                 <div className={styles.sliderHeader}>

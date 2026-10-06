@@ -353,8 +353,8 @@ export type AnnotationItem =
   | { type: 'Ellipse'; cx: number; cy: number; rx: number; ry: number; color: [number, number, number, number]; stroke_width: number; fill?: [number, number, number, number] | null }
   | { type: 'StepBadge'; cx: number; cy: number; radius: number; number: number; bg_color: [number, number, number, number]; text_color: [number, number, number, number] }
   | { type: 'Text'; x: number; y: number; content: string; color: [number, number, number, number]; font_size: number; bg_pill?: boolean }
-  | { type: 'BlurRect'; x: number; y: number; width: number; height: number; sigma: number }
-  | { type: 'MosaicRect'; x: number; y: number; width: number; height: number; block_size: number };
+  | { type: 'BlurRect'; x: number; y: number; width: number; height: number; sigma: number; polygon_points?: Point2D[] }
+  | { type: 'MosaicRect'; x: number; y: number; width: number; height: number; block_size: number; polygon_points?: Point2D[] };
 
 export interface AnnotationsRequest {
   path: string;

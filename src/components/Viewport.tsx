@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useViewerStore } from '../stores/useViewerStore';
 import { CropOverlay } from './CropOverlay';
+import { CropControlBar } from './CropControlBar';
 import { AnnotationLayer } from './AnnotationLayer';
 import { ToolPalette } from './ToolPalette';
 import styles from './Viewport.module.css';
@@ -77,9 +78,6 @@ export const Viewport: React.FC = () => {
     openMediaFolder,
     activeSubTool,
     setActiveSubTool,
-    cropBox,
-    setCropBox,
-    updateVideoParams,
     undoAnnotation,
     redoAnnotation,
     copyNotice,
@@ -142,6 +140,7 @@ export const Viewport: React.FC = () => {
       if (!e.ctrlKey && !e.metaKey && !e.altKey) {
         switch (e.key.toLowerCase()) {
           case 'v':
+          case 'm':
             setActiveSubTool('select');
             break;
           case 'c':
@@ -166,7 +165,8 @@ export const Viewport: React.FC = () => {
             setActiveSubTool('ellipse');
             break;
           case 'b':
-            setActiveSubTool('badge');
+          case 'g':
+            setActiveSubTool('blur_rect');
             break;
           case 't':
             setActiveSubTool('text');
@@ -369,13 +369,18 @@ export const Viewport: React.FC = () => {
     };
   }, [current, setZoomAndPan, setPan]);
 
-  // Pointer drag pan: left-click in view mode or select tool; right-click in any mode (including edit mode)
+  // Pointer drag pan: middle-click or right-click in ANY mode (including edit mode); left-click in view mode or select tool
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const isMiddleClick = e.button === 1;
     const isRightClick = e.button === 2;
     const isLeftClick = e.button === 0;
 
-    const canPan = isRightClick || (isLeftClick && (activeMode !== 'edit' || activeSubTool === 'select'));
+    const canPan = isMiddleClick || isRightClick || (isLeftClick && (activeMode !== 'edit' || activeSubTool === 'select'));
     if (!canPan) return;
+
+    if (isMiddleClick || isRightClick) {
+      e.preventDefault();
+    }
 
     const target = e.target as HTMLElement | null;
     if (
@@ -617,9 +622,13 @@ export const Viewport: React.FC = () => {
       onPointerCancel={handlePointerUp}
       onDoubleClick={handleDoubleClick}
       onContextMenu={(e) => e.preventDefault()}
+      onAuxClick={(e) => e.preventDefault()}
     >
       {/* Floating Studio Tool Palette: only visible in edit mode */}
       {activeMode === 'edit' && !isVideo && <ToolPalette />}
+
+      {/* Fixed Capsule Crop Action Bar: only visible when crop tool is active */}
+      {activeSubTool === 'crop' && <CropControlBar />}
 
       {/* Copy to Clipboard Notification Toast */}
       {copyNotice && (
@@ -717,6 +726,7 @@ export const Viewport: React.FC = () => {
             mediaWidth={mediaWidth}
             mediaHeight={mediaHeight}
             imageElement={imgRef.current}
+            displaySrc={displaySrc}
           />
 
           {/* Interactive 8-Anchor Crop Overlay */}
@@ -724,18 +734,6 @@ export const Viewport: React.FC = () => {
             <CropOverlay
               mediaWidth={mediaWidth}
               mediaHeight={mediaHeight}
-              onApply={() => {
-                if (cropBox) {
-                  if (isVideo) {
-                    updateVideoParams({ crop: cropBox });
-                  } else {
-                    updateEditor({ crop: cropBox });
-                  }
-                }
-              }}
-              onCancel={() => {
-                setCropBox(null);
-              }}
             />
           )}
         </div>

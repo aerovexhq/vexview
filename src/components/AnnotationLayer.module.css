@@ -18,7 +18,7 @@
 }
 
 .eyedropperCursor {
-  cursor: copy;
+  cursor: crosshair;
 }
 
 .svgRoot {
@@ -35,26 +35,115 @@
 .textInputOverlay {
   position: absolute;
   background: rgba(15, 23, 42, 0.95);
-  border: 1px solid #3b82f6;
-  border-radius: 4px;
+  border: 1.5px solid #3b82f6;
+  border-radius: 6px;
   color: #ffffff;
-  padding: 4px 8px;
+  padding: 6px 12px;
   font-family: inherit;
-  font-size: 14px;
   outline: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-  z-index: 25;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7);
+  pointer-events: auto;
+  z-index: 50;
 }
 
 .redactionBlur {
   fill: rgba(200, 220, 255, 0.25);
   stroke: rgba(59, 130, 246, 0.6);
   stroke-dasharray: 4 2;
-  backdrop-filter: blur(8px);
 }
 
 .redactionMosaic {
   fill: rgba(100, 116, 139, 0.35);
   stroke: rgba(148, 163, 184, 0.7);
   stroke-dasharray: 2 2;
+}
+
+@keyframes marchingAntsAnim {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 12;
+  }
+}
+
+.marchingAntsBase {
+  fill: rgba(59, 130, 246, 0.14);
+  stroke: #ffffff;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  animation: marchingAntsAnim 0.6s linear infinite;
+}
+
+.marchingAntsDark {
+  fill: none;
+  stroke: #0f172a;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  stroke-dashoffset: 4;
+  animation: marchingAntsAnim 0.6s linear infinite;
+}
+
+.selectionNode {
+  fill: #3b82f6;
+  stroke: #ffffff;
+  stroke-width: 1.5;
+  cursor: pointer;
+}
+
+.selectionPillOverlay {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  margin-top: -8px;
+  background-color: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+  border-radius: 9999px;
+  padding: 3px 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: auto;
+  z-index: 45;
+  white-space: nowrap;
+}
+
+.selectionPillBtn {
+  background: transparent;
+  border: none;
+  color: #f1f5f9;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.12s ease;
+
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+  }
+}
+
+.selectionPillBtnPrimary {
+  background-color: #3b82f6;
+  color: #ffffff;
+
+  &:hover {
+    background-color: #2563eb;
+  }
+}
+
+.selectionPillBtnClose {
+  color: #94a3b8;
+  padding: 3px 6px;
+
+  &:hover {
+    color: #ef4444;
+    background-color: rgba(239, 68, 68, 0.15);
+  }
 }

@@ -14,6 +14,8 @@ import {
 
 export type ActiveSubTool =
   | 'select'
+  | 'select_lasso'
+  | 'select_polygon'
   | 'crop'
   | 'pen'
   | 'highlighter'
@@ -21,12 +23,18 @@ export type ActiveSubTool =
   | 'arrow'
   | 'rect'
   | 'ellipse'
-  | 'badge'
   | 'text'
   | 'blur_rect'
   | 'mosaic_rect'
+  | 'blur_heavy'
   | 'eraser'
   | 'eyedropper';
+
+export interface ActiveSelection {
+  type: 'rect' | 'lasso' | 'polygon';
+  points: { x: number; y: number }[];
+  box: { x: number; y: number; width: number; height: number };
+}
 
 export type CropAspectRatio = 'free' | '1:1' | '16:9' | '9:16' | '4:3' | '3:2' | '21:9';
 
@@ -117,6 +125,7 @@ interface ViewerStore {
 
   // Annotations & Tools
   activeSubTool: ActiveSubTool;
+  activeSelection: ActiveSelection | null;
   strokeColor: [number, number, number, number];
   fillColor: [number, number, number, number] | null;
   strokeWidth: number;
@@ -170,6 +179,8 @@ interface ViewerStore {
 
   // Annotation Actions
   setActiveSubTool: (tool: ActiveSubTool) => void;
+  setActiveSelection: (selection: ActiveSelection | null) => void;
+  applyBlurToSelection: (blurType?: 'blur_rect' | 'mosaic_rect' | 'blur_heavy') => void;
   setStrokeColor: (color: [number, number, number, number]) => void;
   setFillColor: (color: [number, number, number, number] | null) => void;
   setStrokeWidth: (width: number) => void;
@@ -267,6 +278,7 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
   editor: initialEditorState,
 
   activeSubTool: 'select',
+  activeSelection: null,
   strokeColor: [239, 68, 68, 255], // default red
   fillColor: null,
   strokeWidth: 4,
@@ -418,6 +430,47 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
 
   // Annotation Actions
   setActiveSubTool: (activeSubTool) => set({ activeSubTool }),
+  setActiveSelection: (activeSelection) => set({ activeSelection }),
+  applyBlurToSelection: (blurType = 'blur_rect') => {
+    const { activeSelection, addAnnotation, setActiveSelection } = get();
+    if (!activeSelection) return;
+    const { box, points, type } = activeSelection;
+    if (box.width <= 0 || box.height <= 0) return;
+
+    const polyPts = type !== 'rect' && points.length >= 3 ? points : undefined;
+    if (blurType === 'mosaic_rect') {
+      addAnnotation({
+        type: 'MosaicRect',
+        x: box.x,
+        y: box.y,
+        width: box.width,
+        height: box.height,
+        block_size: 14,
+        polygon_points: polyPts,
+      });
+    } else if (blurType === 'blur_heavy') {
+      addAnnotation({
+        type: 'BlurRect',
+        x: box.x,
+        y: box.y,
+        width: box.width,
+        height: box.height,
+        sigma: 28.0,
+        polygon_points: polyPts,
+      });
+    } else {
+      addAnnotation({
+        type: 'BlurRect',
+        x: box.x,
+        y: box.y,
+        width: box.width,
+        height: box.height,
+        sigma: 12.0,
+        polygon_points: polyPts,
+      });
+    }
+    setActiveSelection(null);
+  },
   setStrokeColor: (strokeColor) => set({ strokeColor }),
   setFillColor: (fillColor) => set({ fillColor }),
   setStrokeWidth: (strokeWidth) => set({ strokeWidth: Math.max(1, strokeWidth) }),

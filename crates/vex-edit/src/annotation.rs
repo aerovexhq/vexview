@@ -1,5 +1,5 @@
 use crate::filters::{blur_region, pixelate_region};
-use image::{DynamicImage, Rgba, RgbaImage};
+use image::{DynamicImage, GenericImageView, Rgba, RgbaImage};
 use imageproc::drawing::{
     draw_filled_circle_mut, draw_filled_rect_mut, draw_hollow_circle_mut,
     draw_hollow_rect_mut, draw_polygon_mut,
@@ -91,6 +91,8 @@ pub enum AnnotationItem {
         width: f32,
         height: f32,
         sigma: f32,
+        #[serde(default)]
+        polygon_points: Option<Vec<Point2D>>,
     },
     MosaicRect {
         x: f32,
@@ -98,9 +100,28 @@ pub enum AnnotationItem {
         width: f32,
         height: f32,
         block_size: u32,
+        #[serde(default)]
+        polygon_points: Option<Vec<Point2D>>,
     },
 }
 
+/// Tests if a 2D point lies within an arbitrary polygon using ray-casting
+fn is_point_in_polygon(x: f32, y: f32, polygon: &[Point2D]) -> bool {
+    if polygon.len() < 3 {
+        return false;
+    }
+    let mut inside = false;
+    let mut j = polygon.len() - 1;
+    for i in 0..polygon.len() {
+        let pi = &polygon[i];
+        let pj = &polygon[j];
+        if ((pi.y > y) != (pj.y > y)) && (x < (pj.x - pi.x) * (y - pi.y) / (pj.y - pi.y) + pi.x) {
+            inside = !inside;
+        }
+        j = i;
+    }
+    inside
+}
 
 /// Draws a thick antialiased line segment between two points with rounded caps
 fn draw_thick_line(
@@ -201,8 +222,9 @@ pub fn render_annotations(
                 width,
                 height,
                 sigma,
+                polygon_points,
             } => {
-                current = blur_region(
+                let blurred = blur_region(
                     &current,
                     x.max(0.0).round() as u32,
                     y.max(0.0).round() as u32,
@@ -210,6 +232,29 @@ pub fn render_annotations(
                     height.max(1.0).round() as u32,
                     *sigma,
                 );
+                if let Some(pts) = polygon_points {
+                    if pts.len() >= 3 {
+                        let mut curr_rgba = current.to_rgba8();
+                        let blurred_rgba = blurred.to_rgba8();
+                        let (img_w, img_h) = current.dimensions();
+                        let min_x = x.max(0.0).round() as u32;
+                        let min_y = y.max(0.0).round() as u32;
+                        let max_x = (x + width).min(img_w as f32).round() as u32;
+                        let max_y = (y + height).min(img_h as f32).round() as u32;
+                        for py in min_y..max_y {
+                            for px in min_x..max_x {
+                                if is_point_in_polygon(px as f32, py as f32, pts) {
+                                    curr_rgba.put_pixel(px, py, *blurred_rgba.get_pixel(px, py));
+                                }
+                            }
+                        }
+                        current = DynamicImage::ImageRgba8(curr_rgba);
+                    } else {
+                        current = blurred;
+                    }
+                } else {
+                    current = blurred;
+                }
             }
             AnnotationItem::MosaicRect {
                 x,
@@ -217,8 +262,9 @@ pub fn render_annotations(
                 width,
                 height,
                 block_size,
+                polygon_points,
             } => {
-                current = pixelate_region(
+                let pixelated = pixelate_region(
                     &current,
                     x.max(0.0).round() as u32,
                     y.max(0.0).round() as u32,
@@ -226,6 +272,29 @@ pub fn render_annotations(
                     height.max(1.0).round() as u32,
                     *block_size,
                 );
+                if let Some(pts) = polygon_points {
+                    if pts.len() >= 3 {
+                        let mut curr_rgba = current.to_rgba8();
+                        let pixelated_rgba = pixelated.to_rgba8();
+                        let (img_w, img_h) = current.dimensions();
+                        let min_x = x.max(0.0).round() as u32;
+                        let min_y = y.max(0.0).round() as u32;
+                        let max_x = (x + width).min(img_w as f32).round() as u32;
+                        let max_y = (y + height).min(img_h as f32).round() as u32;
+                        for py in min_y..max_y {
+                            for px in min_x..max_x {
+                                if is_point_in_polygon(px as f32, py as f32, pts) {
+                                    curr_rgba.put_pixel(px, py, *pixelated_rgba.get_pixel(px, py));
+                                }
+                            }
+                        }
+                        current = DynamicImage::ImageRgba8(curr_rgba);
+                    } else {
+                        current = pixelated;
+                    }
+                } else {
+                    current = pixelated;
+                }
             }
             _ => {}
         }
@@ -483,6 +552,7 @@ mod tests {
                 width: 40.0,
                 height: 40.0,
                 block_size: 4,
+                polygon_points: None,
             },
             AnnotationItem::BlurRect {
                 x: 20.0,
@@ -490,10 +560,38 @@ mod tests {
                 width: 40.0,
                 height: 40.0,
                 sigma: 2.0,
+                polygon_points: None,
             },
         ];
 
         let result = render_annotations(&dyn_img, &annotations);
         assert_eq!(result.dimensions(), (200, 200));
+    }
+
+    #[test]
+    fn test_polygon_masked_blur() {
+        let mut img = RgbaImage::new(100, 100);
+        for p in img.pixels_mut() {
+            *p = Rgba([120, 120, 120, 255]);
+        }
+        let dyn_img = DynamicImage::ImageRgba8(img);
+        let polygon = vec![
+            Point2D { x: 10.0, y: 10.0 },
+            Point2D { x: 50.0, y: 10.0 },
+            Point2D { x: 50.0, y: 50.0 },
+            Point2D { x: 10.0, y: 50.0 },
+        ];
+        let annotations = vec![
+            AnnotationItem::BlurRect {
+                x: 10.0,
+                y: 10.0,
+                width: 40.0,
+                height: 40.0,
+                sigma: 4.0,
+                polygon_points: Some(polygon),
+            },
+        ];
+        let result = render_annotations(&dyn_img, &annotations);
+        assert_eq!(result.dimensions(), (100, 100));
     }
 }

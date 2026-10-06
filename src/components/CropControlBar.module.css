@@ -1,0 +1,108 @@
+.barWrapper {
+  position: absolute;
+  top: 68px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 45;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.barContainer {
+  background-color: var(--bg-hud);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-hairline);
+  box-shadow: var(--shadow-hud);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  padding: 4px 6px;
+  gap: 4px;
+  box-sizing: border-box;
+}
+
+.presetGroup {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.ratioBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  outline: none;
+
+  &:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-glass-hover);
+  }
+
+  &.active {
+    color: var(--text-accent);
+    background-color: var(--bg-glass-hover);
+    font-weight: 600;
+  }
+}
+
+.divider {
+  width: 1px;
+  height: 16px;
+  background-color: var(--border-hairline);
+  margin: 0 4px;
+}
+
+.dimensionBadge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  padding: 0 6px;
+  white-space: nowrap;
+}
+
+.applyBtn {
+  background-color: #10b981;
+  color: #022c22;
+  border: none;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all var(--transition-fast);
+
+  &:hover {
+    background-color: #059669;
+    color: #ffffff;
+  }
+}
+
+.cancelBtn {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  transition: all var(--transition-fast);
+
+  &:hover {
+    background-color: var(--bg-glass-hover);
+    color: #ef4444;
+  }
+}

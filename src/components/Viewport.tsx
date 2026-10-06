@@ -1,6 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useViewerStore } from '../stores/useViewerStore';
+import { CropOverlay } from './CropOverlay';
+import { AnnotationLayer } from './AnnotationLayer';
+import { ToolPalette } from './ToolPalette';
 import styles from './Viewport.module.css';
 
 export const Viewport: React.FC = () => {
@@ -8,6 +11,7 @@ export const Viewport: React.FC = () => {
     items,
     currentIndex,
     imageDetail,
+    videoDetail,
     loading,
     error,
     zoom,
@@ -24,11 +28,19 @@ export const Viewport: React.FC = () => {
     seekTime,
     openMediaFile,
     openMediaFolder,
+    activeSubTool,
+    setActiveSubTool,
+    cropBox,
+    setCropBox,
+    updateVideoParams,
+    undoAnnotation,
+    redoAnnotation,
   } = useViewerStore();
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   const panRef = useRef(pan);
   const zoomRef = useRef(zoom);
@@ -39,8 +51,9 @@ export const Viewport: React.FC = () => {
   const [isSplitting, setIsSplitting] = useState(false);
 
   const current = items[currentIndex];
+  const isVideo = current?.media_type === 'Video';
 
-  // Keep refs synchronized with external store changes (navigation, reset, HUD clicks)
+  // Synchronize internal refs with store coordinates
   useEffect(() => {
     panRef.current = pan;
     zoomRef.current = zoom;
@@ -49,7 +62,75 @@ export const Viewport: React.FC = () => {
     }
   }, [pan, zoom]);
 
-  // Non-passive wheel listener for smooth cursor-centered zoom without browser scroll lag
+  // Tactile keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
+
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'z' || e.key === 'Z') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            redoAnnotation();
+          } else {
+            undoAnnotation();
+          }
+          return;
+        }
+        if (e.key === 'y' || e.key === 'Y') {
+          e.preventDefault();
+          redoAnnotation();
+          return;
+        }
+      }
+
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        switch (e.key.toLowerCase()) {
+          case 'v':
+            setActiveSubTool('select');
+            break;
+          case 'c':
+            setActiveSubTool('crop');
+            break;
+          case 'p':
+            setActiveSubTool('pen');
+            break;
+          case 'h':
+            setActiveSubTool('highlighter');
+            break;
+          case 'l':
+            setActiveSubTool('line');
+            break;
+          case 'a':
+            setActiveSubTool('arrow');
+            break;
+          case 'r':
+            setActiveSubTool('rect');
+            break;
+          case 'o':
+            setActiveSubTool('ellipse');
+            break;
+          case 'b':
+            setActiveSubTool('badge');
+            break;
+          case 't':
+            setActiveSubTool('text');
+            break;
+          case 'e':
+            setActiveSubTool('eraser');
+            break;
+          case 'i':
+            setActiveSubTool('eyedropper');
+            break;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setActiveSubTool, undoAnnotation, redoAnnotation]);
+
+  // Non-passive wheel listener for smooth cursor-centered zoom
   useEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
@@ -87,9 +168,10 @@ export const Viewport: React.FC = () => {
     };
   }, [setZoomAndPan]);
 
-  // Pointer drag pan with direct GPU RAF pipeline for zero-lag tracking
+  // Pointer drag pan
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
+    if (activeSubTool !== 'select') return;
     if ((e.target as HTMLElement).closest(`.${styles.splitHandle}`)) return;
     if ((e.target as HTMLElement).closest(`.${styles.buttonGroup}`)) return;
 
@@ -162,8 +244,9 @@ export const Viewport: React.FC = () => {
     }
   };
 
-  // Double click toggles between fit (1.0) and 2.5x zoom centered on click
+  // Double click toggles between fit (1.0) and 2.5x zoom
   const handleDoubleClick = (e: React.MouseEvent) => {
+    if (activeSubTool !== 'select') return;
     if ((e.target as HTMLElement).closest(`.${styles.splitHandle}`)) return;
     if ((e.target as HTMLElement).closest(`.${styles.buttonGroup}`)) return;
 
@@ -190,7 +273,7 @@ export const Viewport: React.FC = () => {
     }
   };
 
-  // Sync video play/pause
+  // Synchronize HTML5 video element with isPlaying state
   useEffect(() => {
     if (!videoRef.current) return;
     if (isPlaying) {
@@ -272,11 +355,18 @@ export const Viewport: React.FC = () => {
     );
   }
 
-  const isVideo = current.media_type === 'Video';
   const assetUrl = convertFileSrc(current.path);
   const displaySrc =
     editor.previewUrl ||
     (current.media_type === 'Svg' && imageDetail?.data_url ? imageDetail.data_url : (imageDetail?.data_url || assetUrl));
+
+  const mediaWidth = isVideo
+    ? (videoDetail?.width || 1920)
+    : (imageDetail?.width || imgRef.current?.naturalWidth || 1920);
+
+  const mediaHeight = isVideo
+    ? (videoDetail?.height || 1080)
+    : (imageDetail?.height || imgRef.current?.naturalHeight || 1080);
 
   const getFilterStyle = () => {
     let filterStr = `brightness(${100 + editor.brightness}%) contrast(${100 + editor.contrast}%) blur(${editor.blur}px) saturate(${100 + editor.saturation}%)`;
@@ -305,6 +395,9 @@ export const Viewport: React.FC = () => {
       onPointerCancel={handlePointerUp}
       onDoubleClick={handleDoubleClick}
     >
+      {/* Floating Studio Tool Palette */}
+      <ToolPalette />
+
       {loading && !displaySrc && (
         <div style={{ position: 'absolute', color: '#94a3b8', fontSize: '12px' }}>
           Loading media...
@@ -315,6 +408,7 @@ export const Viewport: React.FC = () => {
           Failed to load media: {error}
         </div>
       )}
+
       <div
         ref={canvasRef}
         className={styles.canvasContainer}
@@ -322,62 +416,93 @@ export const Viewport: React.FC = () => {
           transform: `translate3d(${pan.x}px, ${pan.y}px, 0px) scale(${zoom})`,
         }}
       >
-        {isVideo ? (
-          <video
-            ref={videoRef}
-            src={assetUrl}
-            className={styles.videoElement}
-            onLoadedMetadata={(e) => {
-              const d = (e.target as HTMLVideoElement).duration;
-              if (d > 0) setDuration(d);
-            }}
-            onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
-            loop
-            playsInline
-          />
-        ) : activeMode === 'edit' && editor.previewUrl ? (
-          /* Split comparison mode */
-          <div className={styles.splitContainer}>
-            <img
-              src={imageDetail?.data_url || assetUrl}
-              alt="Original"
-              className={styles.splitOriginal}
-            />
-            <div
-              className={styles.splitEdited}
-              style={{ width: `${editor.splitPosition}%` }}
-            >
-              <img
-                src={editor.previewUrl}
-                alt="Edited"
-                style={{
-                  transform: `rotate(${editor.rotation}deg) scaleX(${editor.flipH ? -1 : 1}) scaleY(${editor.flipV ? -1 : 1})`,
-                  filter: getFilterStyle(),
-                }}
-              />
-            </div>
-            <div
-              className={styles.splitHandle}
-              style={{ left: `${editor.splitPosition}%` }}
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                setIsSplitting(true);
+        <div style={{ position: 'relative', display: 'inline-block' }}>
+          {isVideo ? (
+            <video
+              ref={videoRef}
+              src={assetUrl}
+              className={styles.videoElement}
+              onLoadedMetadata={(e) => {
+                const d = (e.target as HTMLVideoElement).duration;
+                if (d > 0) setDuration(d);
               }}
-            >
-              <div className={styles.handleGrip}>↔</div>
+              onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
+              loop
+              playsInline
+            />
+          ) : activeMode === 'edit' && editor.previewUrl ? (
+            /* Split comparison mode */
+            <div className={styles.splitContainer}>
+              <img
+                ref={imgRef}
+                src={imageDetail?.data_url || assetUrl}
+                alt="Original"
+                className={styles.splitOriginal}
+              />
+              <div
+                className={styles.splitEdited}
+                style={{ width: `${editor.splitPosition}%` }}
+              >
+                <img
+                  src={editor.previewUrl}
+                  alt="Edited"
+                  style={{
+                    transform: `rotate(${editor.rotation}deg) scaleX(${editor.flipH ? -1 : 1}) scaleY(${editor.flipV ? -1 : 1})`,
+                    filter: getFilterStyle(),
+                  }}
+                />
+              </div>
+              <div
+                className={styles.splitHandle}
+                style={{ left: `${editor.splitPosition}%` }}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  setIsSplitting(true);
+                }}
+              >
+                <div className={styles.handleGrip}>↔</div>
+              </div>
             </div>
-          </div>
-        ) : (
-          <img
-            src={displaySrc}
-            alt={current.file_name}
-            className={styles.imageElement}
-            style={{
-              transform: `rotate(${editor.rotation}deg) scaleX(${editor.flipH ? -1 : 1}) scaleY(${editor.flipV ? -1 : 1})`,
-              filter: getFilterStyle(),
-            }}
+          ) : (
+            <img
+              ref={imgRef}
+              src={displaySrc}
+              alt={current.file_name}
+              className={styles.imageElement}
+              style={{
+                transform: `rotate(${editor.rotation}deg) scaleX(${editor.flipH ? -1 : 1}) scaleY(${editor.flipV ? -1 : 1})`,
+                filter: getFilterStyle(),
+              }}
+            />
+          )}
+
+          {/* High-DPI Vector Annotation Layer */}
+          <AnnotationLayer
+            mediaWidth={mediaWidth}
+            mediaHeight={mediaHeight}
+            imageElement={imgRef.current}
           />
-        )}
+
+          {/* Interactive 8-Anchor Crop Overlay */}
+          {activeSubTool === 'crop' && (
+            <CropOverlay
+              mediaWidth={mediaWidth}
+              mediaHeight={mediaHeight}
+              onApply={() => {
+                if (cropBox) {
+                  if (isVideo) {
+                    updateVideoParams({ crop: cropBox });
+                  } else {
+                    updateEditor({ crop: cropBox });
+                  }
+                }
+              }}
+              onCancel={() => {
+                setCropBox(null);
+              }}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

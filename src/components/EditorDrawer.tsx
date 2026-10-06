@@ -6,6 +6,9 @@ import {
   composeVideoSequence,
   saveFileDialog,
   ComposeRequest,
+  processVideoAdvanced,
+  extractVideoAudio,
+  extractBurstFrames,
 } from '../lib/ipc';
 import { CustomSelect, SelectOption } from './common/CustomSelect';
 import styles from './EditorDrawer.module.css';
@@ -30,6 +33,14 @@ const SEQUENCE_QUALITY_OPTIONS: SelectOption<'high' | 'medium' | 'small'>[] = [
   { value: 'small', label: 'Small File / Fast Web (CRF 28 / 128k)' },
 ];
 
+const VIDEO_QUALITY_OPTIONS: SelectOption<'high' | 'medium' | 'small'>[] = [
+  { value: 'high', label: 'High Fidelity (CRF 18 / 192k AAC)' },
+  { value: 'medium', label: 'Balanced (CRF 24 / 128k AAC)' },
+  { value: 'small', label: 'Small Size (CRF 30 / 96k AAC)' },
+];
+
+const SPEED_PRESETS = [0.25, 0.5, 1.0, 1.5, 2.0, 4.0, 8.0];
+
 export const EditorDrawer: React.FC = () => {
   const {
     items,
@@ -39,6 +50,10 @@ export const EditorDrawer: React.FC = () => {
     editor,
     updateEditor,
     resetEditor,
+    videoParams,
+    updateVideoParams,
+    resetVideoParams,
+    setActiveSubTool,
     sequence,
     addCurrentToSequence,
     removeClipFromSequence,
@@ -48,19 +63,27 @@ export const EditorDrawer: React.FC = () => {
     setAudioTrack,
     updateAudioVolume,
     setAudioMode,
+    openTargetFile,
   } = useViewerStore();
 
   const current = items[currentIndex];
   const isVideo = current?.media_type === 'Video';
 
-  const [activeTab, setActiveTab] = useState<'image' | 'sequence'>(
-    isVideo ? 'sequence' : 'image'
+  const [activeTab, setActiveTab] = useState<'image' | 'video' | 'sequence'>(
+    isVideo ? 'video' : 'image'
   );
   const [sequenceQuality, setSequenceQuality] = useState<'high' | 'medium' | 'small'>('medium');
+  const [videoQuality, setVideoQuality] = useState<'high' | 'medium' | 'small'>('medium');
   const [isRendering, setIsRendering] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   if (activeMode !== 'edit' || !current) return null;
+
+  const showStatus = (msg: string) => {
+    setStatusMessage(msg);
+    setTimeout(() => setStatusMessage(null), 4000);
+  };
 
   const handleSaveImage = async (customPath?: string) => {
     setIsSaving(true);
@@ -71,6 +94,7 @@ export const EditorDrawer: React.FC = () => {
         rotation: editor.rotation,
         flip_h: editor.flipH,
         flip_v: editor.flipV,
+        crop: editor.crop || undefined,
         brightness: editor.brightness,
         contrast: editor.contrast,
         blur: editor.blur,
@@ -85,12 +109,13 @@ export const EditorDrawer: React.FC = () => {
       });
 
       if (editor.overwrite && !customPath) {
-        alert(`Successfully overwritten original file:\n${res}`);
+        showStatus(`Overwritten original file: ${res}`);
       } else {
-        alert(`Saved copy next to original:\n${res}`);
+        showStatus(`Saved copy next to original: ${res}`);
+        await openTargetFile(res);
       }
     } catch (e) {
-      alert(`Image export error: ${e}`);
+      showStatus(`Image export error: ${e}`);
     } finally {
       setIsSaving(false);
     }
@@ -107,7 +132,65 @@ export const EditorDrawer: React.FC = () => {
       if (!picked) return;
       await handleSaveImage(picked);
     } catch (e) {
-      alert(`Save As error: ${e}`);
+      showStatus(`Save As error: ${e}`);
+    }
+  };
+
+  const handleProcessVideo = async () => {
+    setIsRendering(true);
+    try {
+      const baseDir = current.path.substring(0, current.path.lastIndexOf('/')) || '.';
+      const stem = current.file_name.replace(/\.[^.]+$/, '');
+      const timestamp = Date.now().toString().slice(-6);
+      const destination = `${baseDir}/${stem}_processed_${timestamp}.mp4`;
+
+      const res = await processVideoAdvanced(current.path, destination, {
+        crop: videoParams.crop,
+        speed: videoParams.speed,
+        rotation: videoParams.rotation > 0 ? videoParams.rotation : null,
+        flip_h: videoParams.flipH,
+        flip_v: videoParams.flipV,
+        mute_audio: videoParams.muteAudio,
+        volume: videoParams.volume,
+        color_grading: {
+          brightness: videoParams.brightness,
+          contrast: videoParams.contrast,
+          saturation: videoParams.saturation,
+          gamma: videoParams.gamma,
+        },
+        grayscale: videoParams.grayscale,
+        sepia: videoParams.sepia,
+        invert: videoParams.invert,
+        reverse: videoParams.reverse,
+        timecode_burn_in: videoParams.timecodeBurnIn,
+        telemetry_text: videoParams.telemetryText || null,
+        quality: videoQuality,
+      });
+
+      showStatus(`Video processed successfully: ${res}`);
+      await openTargetFile(res);
+    } catch (e) {
+      showStatus(`Video processing error: ${e}`);
+    } finally {
+      setIsRendering(false);
+    }
+  };
+
+  const handleExtractAudio = async (format: 'mp3' | 'wav' | 'aac') => {
+    try {
+      const res = await extractVideoAudio(current.path, null, format);
+      showStatus(`Audio track extracted: ${res}`);
+    } catch (e) {
+      showStatus(`Audio extraction error: ${e}`);
+    }
+  };
+
+  const handleExtractBurst = async () => {
+    try {
+      const paths = await extractBurstFrames(current.path, null, 0, 2, 5);
+      showStatus(`Extracted ${paths.length} burst frames.`);
+    } catch (e) {
+      showStatus(`Burst extraction error: ${e}`);
     }
   };
 
@@ -123,13 +206,13 @@ export const EditorDrawer: React.FC = () => {
         mode: 'mix',
       });
     } catch (e) {
-      alert(`Audio picker error: ${e}`);
+      showStatus(`Audio picker error: ${e}`);
     }
   };
 
   const handleRenderSequence = async () => {
     if (sequence.length === 0) {
-      alert('Please add at least one clip to the sequence before rendering.');
+      showStatus('Please add at least one clip to the sequence before rendering.');
       return;
     }
 
@@ -157,9 +240,10 @@ export const EditorDrawer: React.FC = () => {
       };
 
       await composeVideoSequence(req);
-      alert(`Sequence rendered successfully!\nSaved to:\n${destination}`);
+      showStatus(`Sequence rendered successfully: ${destination}`);
+      await openTargetFile(destination);
     } catch (e) {
-      alert(`Rendering error: ${e}`);
+      showStatus(`Rendering error: ${e}`);
     } finally {
       setIsRendering(false);
     }
@@ -184,19 +268,34 @@ export const EditorDrawer: React.FC = () => {
         </button>
       </div>
 
+      {statusMessage && (
+        <div style={{ padding: '8px 12px', background: 'rgba(59, 130, 246, 0.2)', borderBottom: '1px solid rgba(59, 130, 246, 0.4)', fontSize: '11px', color: '#93c5fd' }}>
+          {statusMessage}
+        </div>
+      )}
+
       {/* Mode / Feature Tabs */}
       <div className={styles.tabBar}>
-        <button
-          className={`${styles.tabBtn} ${activeTab === 'image' ? styles.tabActive : ''}`}
-          onClick={() => setActiveTab('image')}
-        >
-          🎨 Image Studio
-        </button>
+        {isVideo ? (
+          <button
+            className={`${styles.tabBtn} ${activeTab === 'video' ? styles.tabActive : ''}`}
+            onClick={() => setActiveTab('video')}
+          >
+            Video Studio
+          </button>
+        ) : (
+          <button
+            className={`${styles.tabBtn} ${activeTab === 'image' ? styles.tabActive : ''}`}
+            onClick={() => setActiveTab('image')}
+          >
+            Image Studio
+          </button>
+        )}
         <button
           className={`${styles.tabBtn} ${activeTab === 'sequence' ? styles.tabActive : ''}`}
           onClick={() => setActiveTab('sequence')}
         >
-          🎬 Sequencer & Music
+          Sequencer & Music
         </button>
       </div>
 
@@ -204,7 +303,7 @@ export const EditorDrawer: React.FC = () => {
         {activeTab === 'image' ? (
           /* TAB 1: IMAGE STUDIO */
           <>
-            {/* Quick Filters */}
+            {/* Presets & Filters */}
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Presets & Filters</div>
               <div className={styles.filterGrid}>
@@ -237,7 +336,7 @@ export const EditorDrawer: React.FC = () => {
 
             {/* Geometry & Orientation */}
             <div className={styles.section}>
-              <div className={styles.sectionTitle}>Orientation</div>
+              <div className={styles.sectionTitle}>Orientation & Crop</div>
               <div className={styles.btnGroup}>
                 <button
                   className={styles.toolBtn}
@@ -266,6 +365,13 @@ export const EditorDrawer: React.FC = () => {
                   title="Flip Vertical"
                 >
                   ⇅
+                </button>
+                <button
+                  className={styles.toolBtn}
+                  onClick={() => setActiveSubTool('crop')}
+                  title="Interactive Crop Box"
+                >
+                  Crop Box
                 </button>
               </div>
             </div>
@@ -440,7 +546,7 @@ export const EditorDrawer: React.FC = () => {
                 <div className={styles.checkboxDesc}>
                   {editor.overwrite ? (
                     <div className={styles.warningNotice}>
-                      ⚠️ Warning: Saving will replace the original file on disk.
+                      Notice: Saving will replace the original file on disk.
                     </div>
                   ) : (
                     <span>Default: Saves a copy next to the original file (e.g. <code>_edited</code>) without modifying the source.</span>
@@ -449,8 +555,276 @@ export const EditorDrawer: React.FC = () => {
               </div>
             </div>
           </>
+        ) : activeTab === 'video' ? (
+          /* TAB 2: VIDEO STUDIO */
+          <>
+            {/* Speed Ramping */}
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>Speed Ramping</div>
+              <div className={styles.filterGrid}>
+                {SPEED_PRESETS.map((s) => (
+                  <button
+                    key={s}
+                    className={`${styles.filterBtn} ${videoParams.speed === s ? styles.active : ''}`}
+                    onClick={() => updateVideoParams({ speed: s })}
+                  >
+                    {s}x
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Video Orientation & Visual Crop */}
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>Transform & Crop</div>
+              <div className={styles.btnGroup}>
+                <button
+                  className={styles.toolBtn}
+                  onClick={() => updateVideoParams({ rotation: (videoParams.rotation + 90) % 360 })}
+                  title="Rotate Right 90°"
+                >
+                  ↻ 90°
+                </button>
+                <button
+                  className={`${styles.toolBtn} ${videoParams.flipH ? styles.active : ''}`}
+                  onClick={() => updateVideoParams({ flipH: !videoParams.flipH })}
+                  title="Flip Horizontal"
+                >
+                  ⇄
+                </button>
+                <button
+                  className={`${styles.toolBtn} ${videoParams.flipV ? styles.active : ''}`}
+                  onClick={() => updateVideoParams({ flipV: !videoParams.flipV })}
+                  title="Flip Vertical"
+                >
+                  ⇅
+                </button>
+                <button
+                  className={styles.toolBtn}
+                  onClick={() => setActiveSubTool('crop')}
+                  title="Interactive Video Crop"
+                >
+                  {videoParams.crop ? 'Recrop' : 'Crop Area'}
+                </button>
+              </div>
+              {videoParams.crop && (
+                <div style={{ fontSize: '11px', color: '#60a5fa', marginTop: '6px' }}>
+                  Cropped: {videoParams.crop.width}x{videoParams.crop.height} at ({videoParams.crop.x}, {videoParams.crop.y})
+                </div>
+              )}
+            </div>
+
+            {/* Audio Dynamics & Extraction */}
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>Audio Tools</div>
+              <div className={styles.checkboxContainer}>
+                <label className={styles.checkboxRow}>
+                  <input
+                    type="checkbox"
+                    checked={videoParams.muteAudio}
+                    onChange={(e) => updateVideoParams({ muteAudio: e.target.checked })}
+                    className={styles.checkboxInput}
+                  />
+                  <span>Mute Audio Track</span>
+                </label>
+              </div>
+
+              {!videoParams.muteAudio && (
+                <div className={styles.sliderRow} style={{ marginTop: '8px' }}>
+                  <div className={styles.sliderHeader}>
+                    <span>Volume Gain</span>
+                    <span className={`${styles.sliderValue} tabular-nums`}>
+                      {(videoParams.volume * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="3"
+                    step="0.05"
+                    value={videoParams.volume}
+                    onChange={(e) => updateVideoParams({ volume: parseFloat(e.target.value) })}
+                    className={styles.rangeInput}
+                  />
+                </div>
+              )}
+
+              <div style={{ marginTop: '10px', display: 'flex', gap: '6px' }}>
+                <button
+                  className={styles.toolBtn}
+                  style={{ flex: 1 }}
+                  onClick={() => handleExtractAudio('mp3')}
+                  title="Extract Audio to 320 kbps MP3"
+                >
+                  Extract MP3
+                </button>
+                <button
+                  className={styles.toolBtn}
+                  style={{ flex: 1 }}
+                  onClick={() => handleExtractAudio('wav')}
+                  title="Extract Audio to Uncompressed WAV"
+                >
+                  Extract WAV
+                </button>
+                <button
+                  className={styles.toolBtn}
+                  style={{ flex: 1 }}
+                  onClick={() => handleExtractAudio('aac')}
+                  title="Extract Audio to AAC"
+                >
+                  Extract AAC
+                </button>
+              </div>
+            </div>
+
+            {/* Color Grading & Filters */}
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>Color Grading & FX</div>
+              <div className={styles.filterGrid}>
+                <button
+                  className={`${styles.filterBtn} ${!videoParams.grayscale && !videoParams.sepia && !videoParams.invert && !videoParams.reverse ? styles.active : ''}`}
+                  onClick={() => updateVideoParams({ grayscale: false, sepia: false, invert: false, reverse: false })}
+                >
+                  Normal
+                </button>
+                <button
+                  className={`${styles.filterBtn} ${videoParams.grayscale ? styles.active : ''}`}
+                  onClick={() => updateVideoParams({ grayscale: !videoParams.grayscale })}
+                >
+                  B&W
+                </button>
+                <button
+                  className={`${styles.filterBtn} ${videoParams.sepia ? styles.active : ''}`}
+                  onClick={() => updateVideoParams({ sepia: !videoParams.sepia })}
+                >
+                  Sepia
+                </button>
+                <button
+                  className={`${styles.filterBtn} ${videoParams.invert ? styles.active : ''}`}
+                  onClick={() => updateVideoParams({ invert: !videoParams.invert })}
+                >
+                  Invert
+                </button>
+                <button
+                  className={`${styles.filterBtn} ${videoParams.reverse ? styles.active : ''}`}
+                  onClick={() => updateVideoParams({ reverse: !videoParams.reverse })}
+                >
+                  Reverse
+                </button>
+              </div>
+
+              {/* Brightness */}
+              <div className={styles.sliderRow} style={{ marginTop: '10px' }}>
+                <div className={styles.sliderHeader}>
+                  <span>Brightness</span>
+                  <span className={`${styles.sliderValue} tabular-nums`}>
+                    {videoParams.brightness.toFixed(2)}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="-0.8"
+                  max="0.8"
+                  step="0.05"
+                  value={videoParams.brightness}
+                  onChange={(e) => updateVideoParams({ brightness: parseFloat(e.target.value) })}
+                  className={styles.rangeInput}
+                />
+              </div>
+
+              {/* Contrast */}
+              <div className={styles.sliderRow}>
+                <div className={styles.sliderHeader}>
+                  <span>Contrast</span>
+                  <span className={`${styles.sliderValue} tabular-nums`}>
+                    {videoParams.contrast.toFixed(2)}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.2"
+                  max="2.5"
+                  step="0.05"
+                  value={videoParams.contrast}
+                  onChange={(e) => updateVideoParams({ contrast: parseFloat(e.target.value) })}
+                  className={styles.rangeInput}
+                />
+              </div>
+
+              {/* Saturation */}
+              <div className={styles.sliderRow}>
+                <div className={styles.sliderHeader}>
+                  <span>Saturation</span>
+                  <span className={`${styles.sliderValue} tabular-nums`}>
+                    {videoParams.saturation.toFixed(2)}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.0"
+                  max="2.5"
+                  step="0.05"
+                  value={videoParams.saturation}
+                  onChange={(e) => updateVideoParams({ saturation: parseFloat(e.target.value) })}
+                  className={styles.rangeInput}
+                />
+              </div>
+            </div>
+
+            {/* Telemetry Overlays & Burst */}
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>Telemetry & Overlays</div>
+              <div className={styles.checkboxContainer}>
+                <label className={styles.checkboxRow}>
+                  <input
+                    type="checkbox"
+                    checked={videoParams.timecodeBurnIn}
+                    onChange={(e) => updateVideoParams({ timecodeBurnIn: e.target.checked })}
+                    className={styles.checkboxInput}
+                  />
+                  <span>Burn-In Timecode (HH:MM:SS.mmm)</span>
+                </label>
+              </div>
+
+              <div className={styles.sliderRow} style={{ marginTop: '8px' }}>
+                <div className={styles.sliderHeader}>
+                  <span>Telemetry Watermark Tag</span>
+                </div>
+                <input
+                  type="text"
+                  placeholder="e.g. Flight Mission A-101"
+                  value={videoParams.telemetryText}
+                  onChange={(e) => updateVideoParams({ telemetryText: e.target.value })}
+                  className={styles.rangeInput}
+                  style={{ padding: '6px 8px', borderRadius: '4px', background: 'rgba(30, 41, 59, 0.8)', border: '1px solid rgba(255,255,255,0.15)', color: '#ffffff' }}
+                />
+              </div>
+
+              <div style={{ marginTop: '10px' }}>
+                <button
+                  className={styles.toolBtn}
+                  style={{ width: '100%' }}
+                  onClick={handleExtractBurst}
+                  title="Extract burst of 5 still frames"
+                >
+                  Extract Burst Frames (Stills)
+                </button>
+              </div>
+            </div>
+
+            {/* Video Export Quality */}
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>Output Quality</div>
+              <CustomSelect<'high' | 'medium' | 'small'>
+                value={videoQuality}
+                options={VIDEO_QUALITY_OPTIONS}
+                onChange={(q) => setVideoQuality(q)}
+                ariaLabel="Video quality"
+              />
+            </div>
+          </>
         ) : (
-          /* TAB 2: SEQUENCE STORYBOARD & MUSIC */
+          /* TAB 3: SEQUENCE STORYBOARD & MUSIC */
           <>
             {/* Clips Section */}
             <div className={styles.section}>
@@ -537,7 +911,7 @@ export const EditorDrawer: React.FC = () => {
                 <div className={styles.audioCard}>
                   <div className={styles.audioHeader}>
                     <span className={styles.audioTitle} title={audioTrack.fileName}>
-                      🎵 {audioTrack.fileName}
+                      {audioTrack.fileName}
                     </span>
                     <button
                       className={styles.removeAudioBtn}
@@ -651,6 +1025,19 @@ export const EditorDrawer: React.FC = () => {
                 : editor.overwrite
                 ? 'Overwrite File'
                 : 'Save Copy'}
+            </button>
+          </>
+        ) : activeTab === 'video' ? (
+          <>
+            <button className={styles.revertBtn} onClick={resetVideoParams} title="Reset all video adjustments">
+              Reset
+            </button>
+            <button
+              className={styles.saveBtn}
+              onClick={handleProcessVideo}
+              disabled={isRendering}
+            >
+              {isRendering ? 'Processing...' : 'Export Video'}
             </button>
           </>
         ) : (

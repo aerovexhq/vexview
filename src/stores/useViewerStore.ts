@@ -3,6 +3,7 @@ import {
   MediaItem,
   ImageDetailResponse,
   VideoMetadata,
+  AnnotationItem,
   scanFolder,
   loadImageDetail,
   probeVideo,
@@ -10,10 +11,29 @@ import {
   openFolderDialog,
 } from '../lib/ipc';
 
+export type ActiveSubTool =
+  | 'select'
+  | 'crop'
+  | 'pen'
+  | 'highlighter'
+  | 'line'
+  | 'arrow'
+  | 'rect'
+  | 'ellipse'
+  | 'badge'
+  | 'text'
+  | 'blur_rect'
+  | 'mosaic_rect'
+  | 'eraser'
+  | 'eyedropper';
+
+export type CropAspectRatio = 'free' | '1:1' | '16:9' | '9:16' | '4:3' | '3:2' | '21:9';
+
 export interface EditorState {
   rotation: number;
   flipH: boolean;
   flipV: boolean;
+  crop: { x: number; y: number; width: number; height: number } | null;
   brightness: number;
   contrast: number;
   blur: number;
@@ -23,8 +43,28 @@ export interface EditorState {
   quality: number;
   exportFormat: 'same' | 'png' | 'jpg' | 'webp' | 'bmp' | 'tiff';
   overwrite: boolean;
-  splitPosition: number; // 0 to 100% for before/after comparison
+  splitPosition: number;
   previewUrl: string | null;
+}
+
+export interface VideoStudioParams {
+  speed: number;
+  crop: { x: number; y: number; width: number; height: number } | null;
+  rotation: number;
+  flipH: boolean;
+  flipV: boolean;
+  muteAudio: boolean;
+  volume: number;
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  gamma: number;
+  grayscale: boolean;
+  sepia: boolean;
+  invert: boolean;
+  reverse: boolean;
+  timecodeBurnIn: boolean;
+  telemetryText: string;
 }
 
 export interface SequenceClip {
@@ -65,10 +105,29 @@ interface ViewerStore {
   currentTime: number;
   duration: number;
   seekTime: number | null;
-  trimRange: [number, number]; // [startSec, endSec]
+  trimRange: [number, number];
 
-  // Image editing
+  // Image editing (parametric)
   editor: EditorState;
+
+  // Annotations & Tools
+  activeSubTool: ActiveSubTool;
+  strokeColor: [number, number, number, number];
+  fillColor: [number, number, number, number] | null;
+  strokeWidth: number;
+  fontSize: number;
+  badgeNumber: number;
+  annotations: AnnotationItem[];
+  annotationHistory: AnnotationItem[][];
+  annotationRedoHistory: AnnotationItem[][];
+
+  // Crop & Straighten
+  cropBox: { x: number; y: number; width: number; height: number } | null;
+  cropAspectRatio: CropAspectRatio;
+  straightenAngle: number;
+
+  // Video Studio Parameters
+  videoParams: VideoStudioParams;
 
   // Sequence Storyboard & Audio Track
   sequence: SequenceClip[];
@@ -97,6 +156,29 @@ interface ViewerStore {
   openTargetFile: (filePath: string) => Promise<void>;
   openMediaFolder: () => Promise<void>;
 
+  // Annotation Actions
+  setActiveSubTool: (tool: ActiveSubTool) => void;
+  setStrokeColor: (color: [number, number, number, number]) => void;
+  setFillColor: (color: [number, number, number, number] | null) => void;
+  setStrokeWidth: (width: number) => void;
+  setFontSize: (size: number) => void;
+  setBadgeNumber: (num: number) => void;
+  incrementBadgeNumber: () => void;
+  addAnnotation: (item: AnnotationItem) => void;
+  undoAnnotation: () => void;
+  redoAnnotation: () => void;
+  clearAnnotations: () => void;
+  setAnnotations: (items: AnnotationItem[]) => void;
+
+  // Crop Actions
+  setCropBox: (box: { x: number; y: number; width: number; height: number } | null) => void;
+  setCropAspectRatio: (ratio: CropAspectRatio) => void;
+  setStraightenAngle: (angle: number) => void;
+
+  // Video Studio Actions
+  updateVideoParams: (partial: Partial<VideoStudioParams>) => void;
+  resetVideoParams: () => void;
+
   // Sequence Actions
   addCurrentToSequence: () => void;
   removeClipFromSequence: (id: string) => void;
@@ -111,6 +193,7 @@ const initialEditorState: EditorState = {
   rotation: 0,
   flipH: false,
   flipV: false,
+  crop: null,
   brightness: 0,
   contrast: 0,
   blur: 0,
@@ -122,6 +205,26 @@ const initialEditorState: EditorState = {
   overwrite: false,
   splitPosition: 50,
   previewUrl: null,
+};
+
+const initialVideoParams: VideoStudioParams = {
+  speed: 1.0,
+  crop: null,
+  rotation: 0,
+  flipH: false,
+  flipV: false,
+  muteAudio: false,
+  volume: 1.0,
+  brightness: 0.0,
+  contrast: 1.0,
+  saturation: 1.0,
+  gamma: 1.0,
+  grayscale: false,
+  sepia: false,
+  invert: false,
+  reverse: false,
+  timecodeBurnIn: false,
+  telemetryText: '',
 };
 
 export const useViewerStore = create<ViewerStore>((set, get) => ({
@@ -146,6 +249,23 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
   trimRange: [0, 0],
 
   editor: initialEditorState,
+
+  activeSubTool: 'select',
+  strokeColor: [239, 68, 68, 255], // default red
+  fillColor: null,
+  strokeWidth: 4,
+  fontSize: 18,
+  badgeNumber: 1,
+  annotations: [],
+  annotationHistory: [],
+  annotationRedoHistory: [],
+
+  cropBox: null,
+  cropAspectRatio: 'free',
+  straightenAngle: 0,
+
+  videoParams: initialVideoParams,
+
   sequence: [],
   audioTrack: null,
 
@@ -177,6 +297,12 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
       isPlaying: false,
       currentTime: 0,
       seekTime: null,
+      annotations: [],
+      annotationHistory: [],
+      annotationRedoHistory: [],
+      cropBox: null,
+      straightenAngle: 0,
+      videoParams: initialVideoParams,
     });
 
     try {
@@ -235,6 +361,65 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
   updateEditor: (partial) =>
     set((s) => ({ editor: { ...s.editor, ...partial } })),
   resetEditor: () => set({ editor: initialEditorState }),
+
+  // Annotation Actions
+  setActiveSubTool: (activeSubTool) => set({ activeSubTool }),
+  setStrokeColor: (strokeColor) => set({ strokeColor }),
+  setFillColor: (fillColor) => set({ fillColor }),
+  setStrokeWidth: (strokeWidth) => set({ strokeWidth: Math.max(1, strokeWidth) }),
+  setFontSize: (fontSize) => set({ fontSize: Math.max(8, fontSize) }),
+  setBadgeNumber: (badgeNumber) => set({ badgeNumber }),
+  incrementBadgeNumber: () => set((s) => ({ badgeNumber: s.badgeNumber + 1 })),
+
+  addAnnotation: (item) =>
+    set((s) => ({
+      annotationHistory: [...s.annotationHistory, s.annotations],
+      annotationRedoHistory: [],
+      annotations: [...s.annotations, item],
+    })),
+
+  undoAnnotation: () =>
+    set((s) => {
+      if (s.annotationHistory.length === 0) return s;
+      const prev = s.annotationHistory[s.annotationHistory.length - 1];
+      const newHistory = s.annotationHistory.slice(0, -1);
+      return {
+        annotations: prev,
+        annotationHistory: newHistory,
+        annotationRedoHistory: [...s.annotationRedoHistory, s.annotations],
+      };
+    }),
+
+  redoAnnotation: () =>
+    set((s) => {
+      if (s.annotationRedoHistory.length === 0) return s;
+      const next = s.annotationRedoHistory[s.annotationRedoHistory.length - 1];
+      const newRedo = s.annotationRedoHistory.slice(0, -1);
+      return {
+        annotations: next,
+        annotationHistory: [...s.annotationHistory, s.annotations],
+        annotationRedoHistory: newRedo,
+      };
+    }),
+
+  clearAnnotations: () =>
+    set((s) => ({
+      annotationHistory: [...s.annotationHistory, s.annotations],
+      annotationRedoHistory: [],
+      annotations: [],
+    })),
+
+  setAnnotations: (annotations) => set({ annotations }),
+
+  // Crop Actions
+  setCropBox: (cropBox) => set({ cropBox }),
+  setCropAspectRatio: (cropAspectRatio) => set({ cropAspectRatio }),
+  setStraightenAngle: (straightenAngle) => set({ straightenAngle }),
+
+  // Video Studio Actions
+  updateVideoParams: (partial) =>
+    set((s) => ({ videoParams: { ...s.videoParams, ...partial } })),
+  resetVideoParams: () => set({ videoParams: initialVideoParams }),
 
   openTargetFile: async (filePath: string) => {
     try {

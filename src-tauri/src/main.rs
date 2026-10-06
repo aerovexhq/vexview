@@ -399,6 +399,142 @@ async fn compose_video_sequence(req: vex_video::ComposeRequest) -> Result<String
     Ok(dest)
 }
 
+#[derive(Deserialize)]
+pub struct AnnotationsRequest {
+    pub path: String,
+    pub annotations: Vec<vex_edit::AnnotationItem>,
+    pub destination: Option<String>,
+    pub overwrite: Option<bool>,
+    pub format: Option<String>,
+    pub quality: Option<u8>,
+    pub save: Option<bool>,
+}
+
+#[tauri::command]
+fn apply_image_annotations(req: AnnotationsRequest) -> Result<String, String> {
+    let clean = clean_file_path(&req.path);
+    let path_ref = Path::new(&clean);
+    let loaded =
+        vex_image::load_image(&clean).map_err(|e| format!("Failed to load image: {}", e))?;
+
+    let rendered = vex_edit::render_annotations(&loaded.image, &req.annotations);
+
+    let target_ext = req
+        .format
+        .as_deref()
+        .or_else(|| path_ref.extension().and_then(|e| e.to_str()));
+    let fmt = target_ext
+        .and_then(ExportFormat::from_ext_or_name)
+        .unwrap_or(ExportFormat::Png);
+
+    let is_save = req.save.unwrap_or(false)
+        || req.destination.is_some()
+        || req.overwrite.unwrap_or(false);
+
+    if is_save {
+        let dest = if let Some(d) = req.destination.filter(|s| !s.trim().is_empty()) {
+            clean_file_path(&d)
+        } else if req.overwrite.unwrap_or(false) {
+            clean.clone()
+        } else {
+            let next_to = get_non_colliding_path(path_ref, "annotated", Some(fmt.extension()));
+            next_to.to_string_lossy().to_string()
+        };
+
+        vex_edit::export_image(&rendered, &dest, fmt, req.quality)
+            .map_err(|e| format!("Failed to export annotated image: {}", e))?;
+        return Ok(dest);
+    }
+
+    let mut buffer = Cursor::new(Vec::new());
+    rendered
+        .write_to(&mut buffer, image::ImageFormat::Png)
+        .map_err(|e| format!("Failed to encode preview: {}", e))?;
+    let b64 = BASE64_STANDARD.encode(buffer.into_inner());
+    Ok(format!("data:image/png;base64,{}", b64))
+}
+
+#[tauri::command]
+fn process_video_advanced(
+    input: String,
+    output: Option<String>,
+    params: vex_video::AdvancedVideoParams,
+    overwrite: Option<bool>,
+) -> Result<String, String> {
+    let clean_in = clean_file_path(&input);
+    let in_path = Path::new(&clean_in);
+
+    let is_overwrite = overwrite.unwrap_or(false);
+    let dest = if let Some(out) = output.filter(|s| !s.trim().is_empty()) {
+        clean_file_path(&out)
+    } else if is_overwrite {
+        clean_in.clone()
+    } else {
+        let candidate = get_non_colliding_path(in_path, "processed", None);
+        candidate.to_string_lossy().to_string()
+    };
+
+    if is_overwrite {
+        let temp_dest = format!("{}.vex_tmp.mp4", clean_in);
+        vex_video::process_video_advanced(&clean_in, &temp_dest, params)
+            .map_err(|e| format!("Video processing failed: {}", e))?;
+        std::fs::rename(&temp_dest, &clean_in)
+            .map_err(|e| format!("Failed to overwrite original video: {}", e))?;
+        Ok(clean_in)
+    } else {
+        vex_video::process_video_advanced(&clean_in, &dest, params)
+            .map_err(|e| format!("Video processing failed: {}", e))?;
+        Ok(dest)
+    }
+}
+
+#[tauri::command]
+fn extract_video_audio(
+    input: String,
+    output: Option<String>,
+    format: String,
+) -> Result<String, String> {
+    let clean_in = clean_file_path(&input);
+    let in_path = Path::new(&clean_in);
+    let ext = format.to_lowercase();
+    let dest = if let Some(out) = output.filter(|s| !s.trim().is_empty()) {
+        clean_file_path(&out)
+    } else {
+        let candidate = get_non_colliding_path(in_path, "audio", Some(&ext));
+        candidate.to_string_lossy().to_string()
+    };
+
+    vex_video::extract_audio_track(&clean_in, &dest, &ext)
+        .map_err(|e| format!("Audio extraction failed: {}", e))?;
+    Ok(dest)
+}
+
+#[tauri::command]
+fn extract_burst_frames(
+    input: String,
+    output_dir: Option<String>,
+    start_sec: f64,
+    duration_sec: f64,
+    count: u32,
+) -> Result<Vec<String>, String> {
+    let clean_in = clean_file_path(&input);
+    let in_path = Path::new(&clean_in);
+
+    let out_dir = if let Some(d) = output_dir.filter(|s| !s.trim().is_empty()) {
+        std::path::PathBuf::from(clean_file_path(&d))
+    } else {
+        let parent = in_path.parent().unwrap_or_else(|| Path::new("."));
+        let stem = in_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("video");
+        parent.join(format!("{}_burst", stem))
+    };
+
+    vex_video::extract_burst_frames(&clean_in, &out_dir, start_sec, duration_sec, count)
+        .map_err(|e| format!("Burst extraction failed: {}", e))
+}
+
 #[tauri::command]
 async fn convert_media_file(
     input_path: String,
@@ -566,6 +702,10 @@ fn main() {
             get_viewer_config,
             save_viewer_config,
             exit_application,
+            apply_image_annotations,
+            process_video_advanced,
+            extract_video_audio,
+            extract_burst_frames,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

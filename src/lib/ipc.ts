@@ -285,3 +285,120 @@ export async function getCliTarget(): Promise<string | null> {
   if (!isTauri) return null;
   return await invoke<string | null>('get_cli_target');
 }
+
+export interface StrokePoint {
+  x: number;
+  y: number;
+  pressure?: number;
+}
+
+export interface Point2D {
+  x: number;
+  y: number;
+}
+
+export type AnnotationItem =
+  | { type: 'Pen'; points: StrokePoint[]; color: [number, number, number, number]; stroke_width: number }
+  | { type: 'Highlighter'; points: StrokePoint[]; color: [number, number, number, number]; stroke_width: number }
+  | { type: 'Line'; start: Point2D; end: Point2D; color: [number, number, number, number]; stroke_width: number }
+  | { type: 'Arrow'; start: Point2D; end: Point2D; color: [number, number, number, number]; stroke_width: number; double_headed?: boolean }
+  | { type: 'Rectangle'; x: number; y: number; width: number; height: number; color: [number, number, number, number]; stroke_width: number; fill?: [number, number, number, number] | null; border_radius?: number }
+  | { type: 'Ellipse'; cx: number; cy: number; rx: number; ry: number; color: [number, number, number, number]; stroke_width: number; fill?: [number, number, number, number] | null }
+  | { type: 'StepBadge'; cx: number; cy: number; radius: number; number: number; bg_color: [number, number, number, number]; text_color: [number, number, number, number] }
+  | { type: 'Text'; x: number; y: number; content: string; color: [number, number, number, number]; font_size: number; bg_pill?: boolean }
+  | { type: 'BlurRect'; x: number; y: number; width: number; height: number; sigma: number }
+  | { type: 'MosaicRect'; x: number; y: number; width: number; height: number; block_size: number };
+
+export interface AnnotationsRequest {
+  path: string;
+  annotations: AnnotationItem[];
+  destination?: string | null;
+  overwrite?: boolean;
+  format?: string | null;
+  quality?: number;
+  save?: boolean;
+}
+
+export async function applyImageAnnotations(req: AnnotationsRequest): Promise<string> {
+  if (!isTauri) return req.path;
+  return await invoke<string>('apply_image_annotations', { req });
+}
+
+export interface VideoCropParams {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface ColorGradingParams {
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+  gamma?: number;
+}
+
+export interface AdvancedVideoParams {
+  start_sec?: number | null;
+  end_sec?: number | null;
+  crop?: VideoCropParams | null;
+  speed?: number | null;
+  rotation?: number | null;
+  flip_h?: boolean;
+  flip_v?: boolean;
+  mute_audio?: boolean;
+  volume?: number | null;
+  color_grading?: ColorGradingParams | null;
+  grayscale?: boolean;
+  sepia?: boolean;
+  invert?: boolean;
+  reverse?: boolean;
+  timecode_burn_in?: boolean;
+  telemetry_text?: string | null;
+  quality?: 'high' | 'medium' | 'small' | null;
+}
+
+export async function processVideoAdvanced(
+  input: string,
+  output?: string | null,
+  params: AdvancedVideoParams = {},
+  overwrite?: boolean,
+): Promise<string> {
+  if (!isTauri) return output || input;
+  return await invoke<string>('process_video_advanced', {
+    input,
+    output: output || null,
+    params,
+    overwrite: overwrite || false,
+  });
+}
+
+export async function extractVideoAudio(
+  input: string,
+  output?: string | null,
+  format: 'mp3' | 'aac' | 'wav' = 'mp3',
+): Promise<string> {
+  if (!isTauri) return output || `${input}.${format}`;
+  return await invoke<string>('extract_video_audio', {
+    input,
+    output: output || null,
+    format,
+  });
+}
+
+export async function extractBurstFrames(
+  input: string,
+  outputDir?: string | null,
+  startSec = 0,
+  durationSec = 1,
+  count = 5,
+): Promise<string[]> {
+  if (!isTauri) return [];
+  return await invoke<string[]>('extract_burst_frames', {
+    input,
+    outputDir: outputDir || null,
+    startSec,
+    durationSec,
+    count,
+  });
+}

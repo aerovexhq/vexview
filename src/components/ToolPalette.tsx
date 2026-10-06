@@ -67,6 +67,70 @@ const SELECTION_SUBTOOLS: SubToolConfig[] = [
   },
 ];
 
+const SHAPES_SUBTOOLS: SubToolConfig[] = [
+  {
+    id: 'rect',
+    label: 'Rectangle (Outline)',
+    shortcut: 'R',
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+      </svg>
+    ),
+  },
+  {
+    id: 'rect_fill',
+    label: 'Rectangle (Filled)',
+    shortcut: 'Shift+R',
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+      </svg>
+    ),
+  },
+  {
+    id: 'ellipse',
+    label: 'Ellipse / Circle (Outline)',
+    shortcut: 'O',
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="9" />
+      </svg>
+    ),
+  },
+  {
+    id: 'ellipse_fill',
+    label: 'Ellipse / Circle (Filled)',
+    shortcut: 'Shift+O',
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+        <circle cx="12" cy="12" r="9" />
+      </svg>
+    ),
+  },
+  {
+    id: 'line',
+    label: 'Straight Line',
+    shortcut: 'L',
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <line x1="4" y1="20" x2="20" y2="4" />
+      </svg>
+    ),
+  },
+  {
+    id: 'arrow',
+    label: 'Directional Arrow',
+    shortcut: 'A',
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <line x1="5" y1="19" x2="19" y2="5" />
+        <polyline points="10 5 19 5 19 14" />
+      </svg>
+    ),
+  },
+];
+
 const BLUR_SUBTOOLS: SubToolConfig[] = [
   {
     id: 'blur_rect',
@@ -128,9 +192,40 @@ export const ToolPalette: React.FC = () => {
   } = useViewerStore();
 
   const [activeSelectionToolId, setActiveSelectionToolId] = useState<ActiveSubTool>('select');
+  const [activeShapeToolId, setActiveShapeToolId] = useState<ActiveSubTool>('rect');
   const [activeBlurToolId, setActiveBlurToolId] = useState<ActiveSubTool>('blur_rect');
-  const [openFlyout, setOpenFlyout] = useState<'selection' | 'blur' | null>(null);
+  const [openFlyout, setOpenFlyout] = useState<'selection' | 'shapes' | 'blur' | null>(null);
   const flyoutTimerRef = useRef<number | null>(null);
+
+  const isSelectionActive =
+    activeSubTool === 'select' ||
+    activeSubTool === 'select_lasso' ||
+    activeSubTool === 'select_polygon';
+
+  const isShapeActive =
+    activeSubTool === 'rect' ||
+    activeSubTool === 'rect_fill' ||
+    activeSubTool === 'ellipse' ||
+    activeSubTool === 'ellipse_fill' ||
+    activeSubTool === 'line' ||
+    activeSubTool === 'arrow';
+
+  const isBlurActive =
+    activeSubTool === 'blur_rect' ||
+    activeSubTool === 'mosaic_rect' ||
+    activeSubTool === 'blur_heavy';
+
+  React.useEffect(() => {
+    if (isSelectionActive) setActiveSelectionToolId(activeSubTool);
+  }, [activeSubTool, isSelectionActive]);
+
+  React.useEffect(() => {
+    if (isShapeActive) setActiveShapeToolId(activeSubTool);
+  }, [activeSubTool, isShapeActive]);
+
+  React.useEffect(() => {
+    if (isBlurActive) setActiveBlurToolId(activeSubTool);
+  }, [activeSubTool, isBlurActive]);
 
   const current = items[currentIndex];
   const isImage = current && current.media_type !== 'Video';
@@ -158,7 +253,7 @@ export const ToolPalette: React.FC = () => {
     strokeColor[1] === rgba[1] &&
     strokeColor[2] === rgba[2];
 
-  const handleFlyoutEnter = (which: 'selection' | 'blur') => {
+  const handleFlyoutEnter = (which: 'selection' | 'shapes' | 'blur') => {
     if (flyoutTimerRef.current) {
       window.clearTimeout(flyoutTimerRef.current);
       flyoutTimerRef.current = null;
@@ -208,69 +303,16 @@ export const ToolPalette: React.FC = () => {
         </svg>
       ),
     },
-    {
-      id: 'line',
-      label: 'Straight Line (L)',
-      icon: (
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <line x1="4" y1="20" x2="20" y2="4" />
-        </svg>
-      ),
-    },
-    {
-      id: 'arrow',
-      label: 'Directional Arrow (A)',
-      icon: (
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <line x1="5" y1="19" x2="19" y2="5" />
-          <polyline points="10 5 19 5 19 14" />
-        </svg>
-      ),
-    },
-    {
-      id: 'rect',
-      label: 'Rectangle (R)',
-      icon: (
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <rect x="3" y="3" width="18" height="18" rx="2" />
-        </svg>
-      ),
-    },
-    {
-      id: 'ellipse',
-      label: 'Ellipse / Circle (O)',
-      icon: (
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="9" />
-        </svg>
-      ),
-    },
-    {
-      id: 'text',
-      label: 'Text Callout (T)',
-      icon: (
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <polyline points="4 7 4 4 20 4 20 7" />
-          <line x1="9" y1="20" x2="15" y2="20" />
-          <line x1="12" y1="4" x2="12" y2="20" />
-        </svg>
-      ),
-    },
   ];
 
   const activeSelectionConfig =
     SELECTION_SUBTOOLS.find((s) => s.id === activeSelectionToolId) || SELECTION_SUBTOOLS[0];
-  const isSelectionActive =
-    activeSubTool === 'select' ||
-    activeSubTool === 'select_lasso' ||
-    activeSubTool === 'select_polygon';
+
+  const activeShapeConfig =
+    SHAPES_SUBTOOLS.find((s) => s.id === activeShapeToolId) || SHAPES_SUBTOOLS[0];
 
   const activeBlurConfig =
     BLUR_SUBTOOLS.find((b) => b.id === activeBlurToolId) || BLUR_SUBTOOLS[0];
-  const isBlurActive =
-    activeSubTool === 'blur_rect' ||
-    activeSubTool === 'mosaic_rect' ||
-    activeSubTool === 'blur_heavy';
 
   return (
     <div
@@ -326,7 +368,7 @@ export const ToolPalette: React.FC = () => {
           )}
         </div>
 
-        {/* 2. Standard Annotation Tools */}
+        {/* 2. Standard Annotation Tools (Crop, Pen, Highlighter) */}
         {standardTools.map((t) => (
           <button
             key={t.id}
@@ -341,7 +383,63 @@ export const ToolPalette: React.FC = () => {
           </button>
         ))}
 
-        {/* 3. Blur & Redaction Tool Group with Photoshop-style hover flyout */}
+        {/* 3. Shapes Tool Group with Photoshop-style hover flyout */}
+        <div
+          className={styles.flyoutGroupWrapper}
+          onMouseEnter={() => handleFlyoutEnter('shapes')}
+          onMouseLeave={handleFlyoutLeave}
+        >
+          <button
+            className={`${styles.toolButton} ${styles.flyoutTrigger} ${isShapeActive ? styles.active : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveSubTool(activeShapeToolId);
+            }}
+            title={`${activeShapeConfig.label} (${activeShapeConfig.shortcut})`}
+          >
+            {activeShapeConfig.icon}
+            <span className={styles.flyoutIndicator} />
+          </button>
+
+          {openFlyout === 'shapes' && (
+            <div className={styles.flyoutMenu}>
+              {SHAPES_SUBTOOLS.map((sub) => (
+                <button
+                  key={sub.id}
+                  className={`${styles.flyoutItem} ${activeSubTool === sub.id ? styles.flyoutItemActive : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveShapeToolId(sub.id);
+                    setActiveSubTool(sub.id);
+                    setOpenFlyout(null);
+                  }}
+                >
+                  <span className={styles.flyoutItemIcon}>{sub.icon}</span>
+                  <span className={styles.flyoutItemLabel}>{sub.label}</span>
+                  <span className={styles.flyoutItemShortcut}>{sub.shortcut}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 4. Text Callout Tool */}
+        <button
+          className={`${styles.toolButton} ${activeSubTool === 'text' ? styles.active : ''}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveSubTool('text');
+          }}
+          title="Text Callout (T)"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="4 7 4 4 20 4 20 7" />
+            <line x1="9" y1="20" x2="15" y2="20" />
+            <line x1="12" y1="4" x2="12" y2="20" />
+          </svg>
+        </button>
+
+        {/* 5. Blur & Redaction Tool Group with Photoshop-style hover flyout */}
         <div
           className={styles.flyoutGroupWrapper}
           onMouseEnter={() => handleFlyoutEnter('blur')}

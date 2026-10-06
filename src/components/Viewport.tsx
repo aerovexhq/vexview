@@ -159,10 +159,18 @@ export const Viewport: React.FC = () => {
             setActiveSubTool('arrow');
             break;
           case 'r':
-            setActiveSubTool('rect');
+            if (e.shiftKey) {
+              setActiveSubTool('rect_fill');
+            } else {
+              setActiveSubTool('rect');
+            }
             break;
           case 'o':
-            setActiveSubTool('ellipse');
+            if (e.shiftKey) {
+              setActiveSubTool('ellipse_fill');
+            } else {
+              setActiveSubTool('ellipse');
+            }
             break;
           case 'b':
           case 'g':

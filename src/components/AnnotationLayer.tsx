@@ -33,6 +33,49 @@ function getConstrainedBox(
   return { x, y, w: absDx, h: absDy };
 }
 
+function createMosaicDataUrl(
+  img: CanvasImageSource,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  blockSize: number = 14
+): string {
+  try {
+    const sw = Math.max(1, Math.round(w));
+    const sh = Math.max(1, Math.round(h));
+    const sx = Math.max(0, Math.round(x));
+    const sy = Math.max(0, Math.round(y));
+    const cols = Math.max(1, Math.round(sw / blockSize));
+    const rows = Math.max(1, Math.round(sh / blockSize));
+
+    const downCanvas = document.createElement('canvas');
+    downCanvas.width = cols;
+    downCanvas.height = rows;
+    const downCtx = downCanvas.getContext('2d');
+    if (!downCtx) return '';
+
+    downCtx.drawImage(img, sx, sy, sw, sh, 0, 0, cols, rows);
+
+    const upCanvas = document.createElement('canvas');
+    upCanvas.width = sw;
+    upCanvas.height = sh;
+    const upCtx = upCanvas.getContext('2d');
+    if (!upCtx) return '';
+
+    upCtx.imageSmoothingEnabled = false;
+    (upCtx as any).mozImageSmoothingEnabled = false;
+    (upCtx as any).webkitImageSmoothingEnabled = false;
+    (upCtx as any).msImageSmoothingEnabled = false;
+
+    upCtx.drawImage(downCanvas, 0, 0, cols, rows, 0, 0, sw, sh);
+    return upCanvas.toDataURL('image/png');
+  } catch (err) {
+    console.warn('Failed to generate mosaic patch:', err);
+    return '';
+  }
+}
+
 export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
   mediaWidth,
   mediaHeight,
@@ -46,7 +89,6 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
     setActiveSelection,
     applyBlurToSelection,
     strokeColor,
-    fillColor,
     strokeWidth,
     fontSize,
     annotations,
@@ -62,12 +104,32 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
   const [polygonNodes, setPolygonNodes] = useState<Point2D[]>([]);
   const [polyCursorPoint, setPolyCursorPoint] = useState<Point2D | null>(null);
 
+  const [mosaicDataUrls, setMosaicDataUrls] = useState<Record<string, string>>({});
+  const [previewMosaicUrl, setPreviewMosaicUrl] = useState<string | null>(null);
+
   const [textInputPos, setTextInputPos] = useState<Point2D | null>(null);
   const [textInputValue, setTextInputValue] = useState('');
   const [isShiftDown, setIsShiftDown] = useState(false);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
+
+  const getSourceImage = useCallback((): CanvasImageSource | null => {
+    if (imageElement && imageElement.complete && imageElement.naturalWidth > 0) {
+      return imageElement;
+    }
+    const domImg =
+      (document.querySelector('img[class*="imageElement"]') as HTMLImageElement | null) ||
+      (document.querySelector('img') as HTMLImageElement | null);
+    if (domImg && domImg.complete && domImg.naturalWidth > 0) {
+      return domImg;
+    }
+    const domVideo = document.querySelector('video') as HTMLVideoElement | null;
+    if (domVideo && domVideo.readyState >= 2) {
+      return domVideo;
+    }
+    return null;
+  }, [imageElement]);
 
   // Track global Shift key for 1:1 aspect ratio constraints
   useEffect(() => {
@@ -89,6 +151,69 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, [polygonNodes, activeSelection, setActiveSelection]);
+
+  // Reset in-progress selection points when selection is cleared
+  useEffect(() => {
+    if (!activeSelection) {
+      setPolygonNodes([]);
+      setPolyCursorPoint(null);
+      setLassoPoints(null);
+    }
+  }, [activeSelection]);
+
+  // Clear uncommitted polygon or lasso points when switching tools
+  useEffect(() => {
+    if (activeSubTool !== 'select_polygon') {
+      setPolygonNodes([]);
+      setPolyCursorPoint(null);
+    }
+    if (activeSubTool !== 'select_lasso') {
+      setLassoPoints(null);
+    }
+  }, [activeSubTool]);
+
+  // Generate real nearest-neighbor mosaic pixelation patches for committed MosaicRect annotations
+  useEffect(() => {
+    const mosaicItems = annotations.filter((a) => a.type === 'MosaicRect');
+    if (mosaicItems.length === 0) return;
+
+    const source = getSourceImage();
+    const generateForItems = (src: CanvasImageSource) => {
+      setMosaicDataUrls((prev) => {
+        const next = { ...prev };
+        let updated = false;
+        mosaicItems.forEach((item) => {
+          if (item.type === 'MosaicRect') {
+            const key = `${Math.round(item.x)}_${Math.round(item.y)}_${Math.round(item.width)}_${Math.round(item.height)}_${item.block_size || 14}`;
+            if (!next[key]) {
+              const url = createMosaicDataUrl(
+                src,
+                item.x,
+                item.y,
+                item.width,
+                item.height,
+                item.block_size || 14
+              );
+              if (url) {
+                next[key] = url;
+                updated = true;
+              }
+            }
+          }
+        });
+        return updated ? next : prev;
+      });
+    };
+
+    if (source) {
+      generateForItems(source);
+    } else if (displaySrc) {
+      const offImg = new Image();
+      offImg.crossOrigin = 'anonymous';
+      offImg.onload = () => generateForItems(offImg);
+      offImg.src = displaySrc;
+    }
+  }, [annotations, displaySrc, getSourceImage]);
 
   // Focus text input when opened
   useEffect(() => {
@@ -269,12 +394,24 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
     } else if (startPoint) {
       e.stopPropagation();
       setCurrentPoint(p);
+
+      if (activeSubTool === 'mosaic_rect') {
+        const box = getConstrainedBox(startPoint, p, isShiftDown || e.shiftKey);
+        if (box.w >= 4 && box.h >= 4) {
+          const src = getSourceImage();
+          if (src) {
+            const url = createMosaicDataUrl(src, box.x, box.y, box.w, box.h, 14);
+            if (url) setPreviewMosaicUrl(url);
+          }
+        }
+      }
     }
   };
 
   const handlePointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
     if (!isInteracting) return;
     e.stopPropagation();
+    setPreviewMosaicUrl(null);
 
     const isConstrained = isShiftDown || e.shiftKey;
 
@@ -368,7 +505,22 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
                 height: box.h,
                 color: strokeColor,
                 stroke_width: strokeWidth,
-                fill: fillColor,
+                fill: null,
+                border_radius: 0,
+              });
+              break;
+            }
+            case 'rect_fill': {
+              const box = getConstrainedBox(p1, p2, isConstrained);
+              addAnnotation({
+                type: 'Rectangle',
+                x: box.x,
+                y: box.y,
+                width: box.w,
+                height: box.h,
+                color: strokeColor,
+                stroke_width: strokeWidth,
+                fill: strokeColor,
                 border_radius: 0,
               });
               break;
@@ -383,7 +535,21 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
                 ry: box.h / 2,
                 color: strokeColor,
                 stroke_width: strokeWidth,
-                fill: fillColor,
+                fill: null,
+              });
+              break;
+            }
+            case 'ellipse_fill': {
+              const box = getConstrainedBox(p1, p2, isConstrained);
+              addAnnotation({
+                type: 'Ellipse',
+                cx: box.x + box.w / 2,
+                cy: box.y + box.h / 2,
+                rx: box.w / 2,
+                ry: box.h / 2,
+                color: strokeColor,
+                stroke_width: strokeWidth,
+                fill: strokeColor,
               });
               break;
             }
@@ -549,14 +715,6 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
           <filter id="heavyBlurFilter" x="-30%" y="-30%" width="160%" height="160%">
             <feGaussianBlur stdDeviation="24" />
           </filter>
-
-          {/* Mosaic Check Pattern for redaction grid */}
-          <pattern id="mosaicCheckPattern" width="16" height="16" patternUnits="userSpaceOnUse">
-            <rect width="8" height="8" fill="#475569" />
-            <rect x="8" width="8" height="8" fill="#64748b" />
-            <rect y="8" width="8" height="8" fill="#64748b" />
-            <rect x="8" y="8" width="8" height="8" fill="#475569" />
-          </pattern>
         </defs>
 
         {/* Existing Committed Annotations */}
@@ -701,12 +859,13 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
                 ? item.polygon_points!.map((pt) => `${pt.x},${pt.y}`).join(' ')
                 : '';
               const filterId = item.sigma > 16 ? 'heavyBlurFilter' : 'gaussianBlurFilter';
+              const isEraser = activeSubTool === 'eraser';
 
               return (
                 <g
                   key={idx}
                   onClick={(e) => handleEraseItem(idx, e)}
-                  style={{ cursor: activeSubTool === 'eraser' ? 'pointer' : 'default' }}
+                  style={{ cursor: isEraser ? 'pointer' : 'default' }}
                 >
                   <clipPath id={clipId}>
                     {hasPoly ? (
@@ -727,26 +886,28 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
                       preserveAspectRatio="none"
                     />
                   )}
-                  {hasPoly ? (
-                    <polygon
-                      points={polyStr}
-                      fill="none"
-                      stroke="rgba(255, 255, 255, 0.75)"
-                      strokeWidth={1.5}
-                      strokeDasharray="4 3"
-                    />
-                  ) : (
-                    <rect
-                      x={item.x}
-                      y={item.y}
-                      width={item.width}
-                      height={item.height}
-                      fill="none"
-                      stroke="rgba(255, 255, 255, 0.75)"
-                      strokeWidth={1.5}
-                      strokeDasharray="4 3"
-                      rx={2}
-                    />
+                  {isEraser && (
+                    hasPoly ? (
+                      <polygon
+                        points={polyStr}
+                        fill="none"
+                        stroke="rgba(239, 68, 68, 0.85)"
+                        strokeWidth={1.5}
+                        strokeDasharray="4 3"
+                      />
+                    ) : (
+                      <rect
+                        x={item.x}
+                        y={item.y}
+                        width={item.width}
+                        height={item.height}
+                        fill="none"
+                        stroke="rgba(239, 68, 68, 0.85)"
+                        strokeWidth={1.5}
+                        strokeDasharray="4 3"
+                        rx={2}
+                      />
+                    )
                   )}
                 </g>
               );
@@ -757,12 +918,15 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
               const polyStr = hasPoly
                 ? item.polygon_points!.map((pt) => `${pt.x},${pt.y}`).join(' ')
                 : '';
+              const key = `${Math.round(item.x)}_${Math.round(item.y)}_${Math.round(item.width)}_${Math.round(item.height)}_${item.block_size || 14}`;
+              const mosaicUrl = mosaicDataUrls[key];
+              const isEraser = activeSubTool === 'eraser';
 
               return (
                 <g
                   key={idx}
                   onClick={(e) => handleEraseItem(idx, e)}
-                  style={{ cursor: activeSubTool === 'eraser' ? 'pointer' : 'default' }}
+                  style={{ cursor: isEraser ? 'pointer' : 'default' }}
                 >
                   <clipPath id={clipId}>
                     {hasPoly ? (
@@ -771,7 +935,18 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
                       <rect x={item.x} y={item.y} width={item.width} height={item.height} rx={2} />
                     )}
                   </clipPath>
-                  {displaySrc && (
+                  {mosaicUrl ? (
+                    <image
+                      href={mosaicUrl}
+                      x={item.x}
+                      y={item.y}
+                      width={item.width}
+                      height={item.height}
+                      clipPath={`url(#${clipId})`}
+                      preserveAspectRatio="none"
+                      style={{ imageRendering: 'pixelated' }}
+                    />
+                  ) : displaySrc ? (
                     <image
                       href={displaySrc}
                       x={0}
@@ -782,45 +957,29 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
                       clipPath={`url(#${clipId})`}
                       preserveAspectRatio="none"
                     />
-                  )}
-                  {hasPoly ? (
-                    <>
-                      <polygon
-                        points={polyStr}
-                        fill="url(#mosaicCheckPattern)"
-                        opacity={0.7}
-                        clipPath={`url(#${clipId})`}
-                      />
+                  ) : null}
+                  {isEraser && (
+                    hasPoly ? (
                       <polygon
                         points={polyStr}
                         fill="none"
-                        stroke="rgba(255, 255, 255, 0.85)"
+                        stroke="rgba(239, 68, 68, 0.85)"
                         strokeWidth={1.5}
-                        strokeDasharray="3 2"
+                        strokeDasharray="4 3"
                       />
-                    </>
-                  ) : (
-                    <>
-                      <rect
-                        x={item.x}
-                        y={item.y}
-                        width={item.width}
-                        height={item.height}
-                        fill="url(#mosaicCheckPattern)"
-                        opacity={0.7}
-                        clipPath={`url(#${clipId})`}
-                      />
+                    ) : (
                       <rect
                         x={item.x}
                         y={item.y}
                         width={item.width}
                         height={item.height}
                         fill="none"
-                        stroke="rgba(255, 255, 255, 0.85)"
+                        stroke="rgba(239, 68, 68, 0.85)"
                         strokeWidth={1.5}
-                        strokeDasharray="3 2"
+                        strokeDasharray="4 3"
+                        rx={2}
                       />
-                    </>
+                    )
                   )}
                 </g>
               );
@@ -943,7 +1102,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
               </g>
             )}
 
-            {activeSubTool === 'rect' && liveConstrainedBox && (
+            {(activeSubTool === 'rect' || activeSubTool === 'rect_fill') && liveConstrainedBox && (
               <rect
                 x={liveConstrainedBox.x}
                 y={liveConstrainedBox.y}
@@ -951,11 +1110,11 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
                 height={liveConstrainedBox.h}
                 stroke={toColorString(strokeColor)}
                 strokeWidth={strokeWidth}
-                fill={fillColor ? toColorString(fillColor) : 'none'}
+                fill={activeSubTool === 'rect_fill' ? toColorString(strokeColor) : 'none'}
               />
             )}
 
-            {activeSubTool === 'ellipse' && liveConstrainedBox && (
+            {(activeSubTool === 'ellipse' || activeSubTool === 'ellipse_fill') && liveConstrainedBox && (
               <ellipse
                 cx={liveConstrainedBox.x + liveConstrainedBox.w / 2}
                 cy={liveConstrainedBox.y + liveConstrainedBox.h / 2}
@@ -963,7 +1122,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
                 ry={liveConstrainedBox.h / 2}
                 stroke={toColorString(strokeColor)}
                 strokeWidth={strokeWidth}
-                fill={fillColor ? toColorString(fillColor) : 'none'}
+                fill={activeSubTool === 'ellipse_fill' ? toColorString(strokeColor) : 'none'}
               />
             )}
 
@@ -1012,7 +1171,18 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
                     height={liveConstrainedBox.h}
                   />
                 </clipPath>
-                {displaySrc && (
+                {previewMosaicUrl ? (
+                  <image
+                    href={previewMosaicUrl}
+                    x={liveConstrainedBox.x}
+                    y={liveConstrainedBox.y}
+                    width={liveConstrainedBox.w}
+                    height={liveConstrainedBox.h}
+                    clipPath="url(#preview-mosaic-clip)"
+                    preserveAspectRatio="none"
+                    style={{ imageRendering: 'pixelated' }}
+                  />
+                ) : displaySrc ? (
                   <image
                     href={displaySrc}
                     x={0}
@@ -1023,25 +1193,16 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
                     clipPath="url(#preview-mosaic-clip)"
                     preserveAspectRatio="none"
                   />
-                )}
-                <rect
-                  x={liveConstrainedBox.x}
-                  y={liveConstrainedBox.y}
-                  width={liveConstrainedBox.w}
-                  height={liveConstrainedBox.h}
-                  fill="url(#mosaicCheckPattern)"
-                  opacity={0.7}
-                  clipPath="url(#preview-mosaic-clip)"
-                />
+                ) : null}
                 <rect
                   x={liveConstrainedBox.x}
                   y={liveConstrainedBox.y}
                   width={liveConstrainedBox.w}
                   height={liveConstrainedBox.h}
                   fill="none"
-                  stroke="#cbd5e1"
+                  stroke="#3b82f6"
                   strokeWidth={1.5}
-                  strokeDasharray="3 2"
+                  strokeDasharray="4 2"
                 />
               </g>
             )}

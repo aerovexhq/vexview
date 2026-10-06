@@ -44,6 +44,8 @@ export interface EditorState {
   quality: number;
   exportFormat: 'same' | 'png' | 'jpg' | 'webp' | 'bmp' | 'tiff';
   exportScale: number;
+  customWidth: number | null;
+  customHeight: number | null;
   overwrite: boolean;
   splitPosition: number;
   previewUrl: string | null;
@@ -213,6 +215,8 @@ const initialEditorState: EditorState = {
   quality: 90,
   exportFormat: 'same',
   exportScale: 1.0,
+  customWidth: null,
+  customHeight: null,
   overwrite: false,
   splitPosition: 50,
   previewUrl: null,

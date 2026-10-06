@@ -16,7 +16,7 @@ export const InspectorModal: React.FC = () => {
   if (!showInspector || !current) return null;
 
   return (
-    <aside className={styles.inspector}>
+    <aside className={styles.inspector} data-drawer="true">
       <div className={styles.header}>
         <span className={styles.title}>Media Inspector</span>
         <button className={styles.closeBtn} onClick={toggleInspector}>

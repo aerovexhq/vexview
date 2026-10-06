@@ -214,14 +214,31 @@ export const ToolPalette: React.FC = () => {
   ];
 
   return (
-    <div className={styles.toolPaletteWrapper}>
-      <div className={styles.toolPaletteContainer} data-role="tool-palette">
+    <div
+      className={styles.toolPaletteWrapper}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+    >
+      <div
+        className={styles.toolPaletteContainer}
+        data-role="tool-palette"
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+      >
       {/* Tool selector buttons */}
       {tools.map((t) => (
         <button
           key={t.id}
           className={`${styles.toolButton} ${activeSubTool === t.id ? styles.active : ''}`}
-          onClick={() => setActiveSubTool(t.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveSubTool(t.id);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
           title={t.label}
         >
           {t.icon}
@@ -236,7 +253,13 @@ export const ToolPalette: React.FC = () => {
           key={c.hex}
           className={`${styles.colorSwatch} ${isCurrentColor(c.rgba) ? styles.activeSwatch : ''}`}
           style={{ backgroundColor: c.hex }}
-          onClick={() => setStrokeColor(c.rgba)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setStrokeColor(c.rgba);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
           title={c.label}
         />
       ))}
@@ -259,7 +282,13 @@ export const ToolPalette: React.FC = () => {
       {/* Undo / Redo */}
       <button
         className={styles.toolButton}
-        onClick={undoAnnotation}
+        onClick={(e) => {
+          e.stopPropagation();
+          undoAnnotation();
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
         disabled={annotationHistory.length === 0}
         title="Undo (Ctrl+Z)"
       >
@@ -271,7 +300,13 @@ export const ToolPalette: React.FC = () => {
 
       <button
         className={styles.toolButton}
-        onClick={redoAnnotation}
+        onClick={(e) => {
+          e.stopPropagation();
+          redoAnnotation();
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
         disabled={annotationRedoHistory.length === 0}
         title="Redo (Ctrl+Y)"
       >
@@ -285,7 +320,13 @@ export const ToolPalette: React.FC = () => {
       {annotations.length > 0 && (
         <button
           className={styles.toolButton}
-          onClick={clearAnnotations}
+          onClick={(e) => {
+            e.stopPropagation();
+            clearAnnotations();
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
           title="Clear Annotations"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -301,7 +342,13 @@ export const ToolPalette: React.FC = () => {
           <div className={styles.divider} />
           <button
             className={styles.bakeButton}
-            onClick={handleBakeAndSave}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleBakeAndSave();
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
             title="Bake and save annotations to new file"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

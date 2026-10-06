@@ -65,8 +65,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className={styles.backdrop} onClick={onClose}>
-      <div className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
+    <div className={styles.backdrop} data-modal="true" onClick={onClose}>
+      <div className={styles.modalCard} data-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
           <div className={styles.title}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

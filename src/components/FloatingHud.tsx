@@ -49,7 +49,13 @@ export const FloatingHud: React.FC = () => {
 
   return (
     <div className={`${styles.hudWrapper} ${visible ? '' : styles.hidden}`}>
-      <div className={styles.hudContainer} data-role="floating-hud">
+      <div
+        className={styles.hudContainer}
+        data-role="floating-hud"
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+      >
         {/* Navigation */}
         <button
           className={styles.hudBtn}

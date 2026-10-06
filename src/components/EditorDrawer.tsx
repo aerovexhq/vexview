@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useViewerStore, EditorState } from '../stores/useViewerStore';
 import {
   applyTransforms,
@@ -33,6 +33,7 @@ const SCALE_OPTIONS: SelectOption<number>[] = [
   { value: 0.75, label: '75% (Scaled)' },
   { value: 0.5, label: '50% (Half Size)' },
   { value: 0.25, label: '25% (Quarter Size)' },
+  { value: -1, label: 'Custom Dimensions...' },
 ];
 
 const SEQUENCE_QUALITY_OPTIONS: SelectOption<'high' | 'medium' | 'small'>[] = [
@@ -88,6 +89,54 @@ export const EditorDrawer: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
+  const origW = imageDetail?.width || 1920;
+  const origH = imageDetail?.height || 1080;
+  const effectiveW = editor.crop ? editor.crop.width : origW;
+  const effectiveH = editor.crop ? editor.crop.height : origH;
+  const aspect = effectiveW > 0 && effectiveH > 0 ? effectiveW / effectiveH : 1.0;
+
+  const [widthInput, setWidthInput] = useState<string>(
+    (editor.customWidth || Math.round(effectiveW * (editor.exportScale > 0 ? editor.exportScale : 1.0))).toString()
+  );
+  const [heightInput, setHeightInput] = useState<string>(
+    (editor.customHeight || Math.round(effectiveH * (editor.exportScale > 0 ? editor.exportScale : 1.0))).toString()
+  );
+
+  useEffect(() => {
+    if (editor.customWidth) {
+      setWidthInput(editor.customWidth.toString());
+    } else {
+      const scale = editor.exportScale > 0 ? editor.exportScale : 1.0;
+      setWidthInput(Math.round(effectiveW * scale).toString());
+    }
+    if (editor.customHeight) {
+      setHeightInput(editor.customHeight.toString());
+    } else {
+      const scale = editor.exportScale > 0 ? editor.exportScale : 1.0;
+      setHeightInput(Math.round(effectiveH * scale).toString());
+    }
+  }, [editor.customWidth, editor.customHeight, editor.exportScale, effectiveW, effectiveH]);
+
+  const handleCustomWidthChange = (valStr: string) => {
+    setWidthInput(valStr);
+    const w = parseInt(valStr, 10);
+    if (!isNaN(w) && w > 0) {
+      const h = Math.max(1, Math.round(w / aspect));
+      setHeightInput(h.toString());
+      updateEditor({ customWidth: w, customHeight: h, exportScale: -1 });
+    }
+  };
+
+  const handleCustomHeightChange = (valStr: string) => {
+    setHeightInput(valStr);
+    const h = parseInt(valStr, 10);
+    if (!isNaN(h) && h > 0) {
+      const w = Math.max(1, Math.round(h * aspect));
+      setWidthInput(w.toString());
+      updateEditor({ customWidth: w, customHeight: h, exportScale: -1 });
+    }
+  };
+
   if (activeMode !== 'edit' || !current) return null;
 
   const showStatus = (msg: string) => {
@@ -99,10 +148,18 @@ export const EditorDrawer: React.FC = () => {
     setIsSaving(true);
     try {
       const format = editor.exportFormat === 'same' ? undefined : editor.exportFormat;
-      const origW = imageDetail?.width;
-      const origH = imageDetail?.height;
-      const targetW = origW && editor.exportScale !== 1.0 ? Math.round(origW * editor.exportScale) : undefined;
-      const targetH = origH && editor.exportScale !== 1.0 ? Math.round(origH * editor.exportScale) : undefined;
+      let targetW: number | undefined;
+      let targetH: number | undefined;
+
+      if (editor.exportScale === -1) {
+        if (editor.customWidth && editor.customHeight) {
+          targetW = Math.round(editor.customWidth);
+          targetH = Math.round(editor.customHeight);
+        }
+      } else if (editor.exportScale !== 1.0) {
+        targetW = origW ? Math.round(origW * editor.exportScale) : undefined;
+        targetH = origH ? Math.round(origH * editor.exportScale) : undefined;
+      }
 
       let res: string;
       if (annotations && annotations.length > 0) {
@@ -282,7 +339,7 @@ export const EditorDrawer: React.FC = () => {
   };
 
   return (
-    <aside className={styles.drawer}>
+    <aside className={styles.drawer} data-drawer="true">
       <div className={styles.header}>
         <span className={styles.title}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -514,16 +571,67 @@ export const EditorDrawer: React.FC = () => {
                   <span>Output Resolution</span>
                   {imageDetail && (
                     <span className={`${styles.sliderValue} tabular-nums`}>
-                      {Math.round(imageDetail.width * editor.exportScale)} × {Math.round(imageDetail.height * editor.exportScale)}
+                      {editor.exportScale === -1 && editor.customWidth && editor.customHeight
+                        ? `${editor.customWidth} × ${editor.customHeight}`
+                        : `${Math.round(imageDetail.width * (editor.exportScale > 0 ? editor.exportScale : 1.0))} × ${Math.round(imageDetail.height * (editor.exportScale > 0 ? editor.exportScale : 1.0))}`}
                     </span>
                   )}
                 </div>
                 <Select<number>
                   value={editor.exportScale}
                   options={SCALE_OPTIONS}
-                  onChange={(scale) => updateEditor({ exportScale: scale })}
+                  onChange={(scale) => {
+                    if (scale === -1) {
+                      const initW = editor.customWidth || effectiveW;
+                      const initH = editor.customHeight || effectiveH;
+                      updateEditor({ exportScale: -1, customWidth: initW, customHeight: initH });
+                    } else {
+                      updateEditor({
+                        exportScale: scale,
+                        customWidth: Math.round(effectiveW * scale),
+                        customHeight: Math.round(effectiveH * scale),
+                      });
+                    }
+                  }}
                   ariaLabel="Output resolution scale"
                 />
+
+                {editor.exportScale === -1 && (
+                  <div className={styles.customDimRow}>
+                    <div className={styles.dimInputGroup}>
+                      <span className={styles.dimLabel}>Width (px)</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="32000"
+                        value={widthInput}
+                        onChange={(e) => handleCustomWidthChange(e.target.value)}
+                        className={styles.dimInput}
+                        placeholder="Width"
+                      />
+                    </div>
+
+                    <div className={styles.aspectLock} title="Aspect ratio locked">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                      </svg>
+                    </div>
+
+                    <div className={styles.dimInputGroup}>
+                      <span className={styles.dimLabel}>Height (px)</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="32000"
+                        value={heightInput}
+                        onChange={(e) => handleCustomHeightChange(e.target.value)}
+                        className={styles.dimInput}
+                        placeholder="Height"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className={styles.sliderRow}>

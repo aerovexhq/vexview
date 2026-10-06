@@ -96,6 +96,7 @@ export const Viewport: React.FC = () => {
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const rafRef = useRef<number | null>(null);
+  const wheelRafRef = useRef<number | null>(null);
 
   const [isSplitting, setIsSplitting] = useState(false);
 
@@ -243,67 +244,130 @@ export const Viewport: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, [centerAndFitMedia]);
 
-  // Non-passive wheel listener: cursor-anchored zoom by default and with Alt/Ctrl; Shift or horizontal to pan
+  // Window-level non-passive wheel listener:
+  // - Ctrl+Scroll / Alt+Scroll / Trackpad pinch: cursor-anchored zoom in and out
+  // - Normal scroll: 2D panning (vertical dy pans up/down, horizontal dx pans left/right, Shift+wheel pans horizontal)
   useEffect(() => {
-    const el = viewportRef.current;
-    if (!el) return;
-
     const handleWheelNative = (e: WheelEvent) => {
+      // Allow native scrolling inside form controls, drawers, modals, titlebars, and filmstrip
+      const target = e.target as HTMLElement | null;
+      if (
+        target?.closest('input, textarea, select, [data-no-wheel="true"]') ||
+        target?.closest('[data-modal="true"], .modal') ||
+        target?.closest('[data-drawer="true"], aside') ||
+        target?.closest('header, [data-role="titlebar"]') ||
+        target?.closest('[data-role="filmstrip"]')
+      ) {
+        return;
+      }
+
+      // If no media loaded, do not capture wheel
+      if (!current) return;
+
       e.preventDefault();
 
-      const isShiftPan = e.shiftKey;
-      const isPureHorizontalPan = Math.abs(e.deltaX) > 0 && Math.abs(e.deltaY) === 0;
+      // Normalize deltas across platforms, browsers, and deltaMode
+      let dx = e.deltaX;
+      let dy = e.deltaY;
+      if (e.deltaMode === 1) {
+        // Line delta mode (WebKitGTK on Linux)
+        dx *= 24;
+        dy *= 24;
+      } else if (e.deltaMode === 2) {
+        // Page delta mode
+        dx *= 400;
+        dy *= 400;
+      }
 
-      if (isShiftPan || isPureHorizontalPan) {
-        // Shift+Scroll or horizontal trackpad scroll: pan
-        const deltaX = isShiftPan ? e.deltaY : e.deltaX;
-        const deltaY = isShiftPan ? 0 : e.deltaY;
+      const isZoom = e.ctrlKey || e.metaKey || e.altKey;
 
-        const newPanX = Math.round(panRef.current.x - deltaX);
-        const newPanY = Math.round(panRef.current.y - deltaY);
+      if (isZoom) {
+        // Zoom in/out anchored to mouse cursor
+        const absDy = Math.abs(dy);
+        if (absDy < 1) return;
 
+        let factor: number;
+        if (absDy < 30) {
+          // Smooth continuous trackpad pinch
+          factor = Math.exp(-dy * 0.01);
+        } else {
+          // Discrete mouse wheel tick: scroll up (negative) zooms in, scroll down (positive) zooms out
+          factor = dy < 0 ? 1.15 : 0.85;
+        }
+
+        const currentZoom = zoomRef.current;
+        const currentPan = panRef.current;
+        const newZoom = Math.max(0.05, Math.min(currentZoom * factor, 32.0));
+
+        if (newZoom !== currentZoom) {
+          const el = viewportRef.current || document.body;
+          const rect = el.getBoundingClientRect();
+          const cursorX = e.clientX - (rect.left + rect.width / 2);
+          const cursorY = e.clientY - (rect.top + rect.height / 2);
+          const scaleRatio = newZoom / currentZoom;
+          const newPanX = cursorX - (cursorX - currentPan.x) * scaleRatio;
+          const newPanY = cursorY - (cursorY - currentPan.y) * scaleRatio;
+
+          const updatedPan = { x: Math.round(newPanX), y: Math.round(newPanY) };
+          panRef.current = updatedPan;
+          zoomRef.current = newZoom;
+
+          if (canvasRef.current) {
+            canvasRef.current.style.transform = `translate3d(${updatedPan.x}px, ${updatedPan.y}px, 0px) scale(${newZoom})`;
+          }
+
+          if (wheelRafRef.current === null) {
+            wheelRafRef.current = requestAnimationFrame(() => {
+              wheelRafRef.current = null;
+              setZoomAndPan(zoomRef.current, panRef.current);
+            });
+          }
+        }
+      } else {
+        // Normal scroll: pan up/down or left/right depending on scroll type
+        let panDeltaX = 0;
+        let panDeltaY = 0;
+
+        if (e.shiftKey) {
+          // Shift + Scroll: horizontal pan
+          panDeltaX = dy !== 0 ? dy : dx;
+          panDeltaY = 0;
+        } else {
+          // Normal 2D pan: dy for vertical (up/down), dx for horizontal (left/right)
+          panDeltaX = dx;
+          panDeltaY = dy;
+        }
+
+        if (panDeltaX === 0 && panDeltaY === 0) return;
+
+        const newPanX = Math.round(panRef.current.x - panDeltaX);
+        const newPanY = Math.round(panRef.current.y - panDeltaY);
         const updatedPan = { x: newPanX, y: newPanY };
+
         panRef.current = updatedPan;
 
         if (canvasRef.current) {
           canvasRef.current.style.transform = `translate3d(${newPanX}px, ${newPanY}px, 0px) scale(${zoomRef.current})`;
         }
 
-        setPan(updatedPan);
-        return;
-      }
-
-      // Smooth cursor-anchored zoom on scroll wheel, Alt+scroll, Ctrl+scroll
-      const factor = e.deltaY < 0 ? 1.15 : 0.85;
-      const currentZoom = zoomRef.current;
-      const currentPan = panRef.current;
-      const newZoom = Math.max(0.05, Math.min(currentZoom * factor, 32.0));
-
-      if (newZoom !== currentZoom && el) {
-        const rect = el.getBoundingClientRect();
-        const offsetX = e.clientX - (rect.left + rect.width / 2);
-        const offsetY = e.clientY - (rect.top + rect.height / 2);
-        const scaleRatio = newZoom / currentZoom;
-        const newPanX = offsetX - (offsetX - currentPan.x) * scaleRatio;
-        const newPanY = offsetY - (offsetY - currentPan.y) * scaleRatio;
-
-        const updatedPan = { x: Math.round(newPanX), y: Math.round(newPanY) };
-        panRef.current = updatedPan;
-        zoomRef.current = newZoom;
-
-        if (canvasRef.current) {
-          canvasRef.current.style.transform = `translate3d(${updatedPan.x}px, ${updatedPan.y}px, 0px) scale(${newZoom})`;
+        if (wheelRafRef.current === null) {
+          wheelRafRef.current = requestAnimationFrame(() => {
+            wheelRafRef.current = null;
+            setPan(panRef.current);
+          });
         }
-
-        setZoomAndPan(newZoom, updatedPan);
       }
     };
 
-    el.addEventListener('wheel', handleWheelNative, { passive: false });
+    window.addEventListener('wheel', handleWheelNative, { passive: false });
     return () => {
-      el.removeEventListener('wheel', handleWheelNative);
+      window.removeEventListener('wheel', handleWheelNative);
+      if (wheelRafRef.current !== null) {
+        cancelAnimationFrame(wheelRafRef.current);
+        wheelRafRef.current = null;
+      }
     };
-  }, [setZoomAndPan, setPan]);
+  }, [current, setZoomAndPan, setPan]);
 
   // Pointer drag pan: left-click in view mode or select tool; right-click in any mode (including edit mode)
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -312,8 +376,17 @@ export const Viewport: React.FC = () => {
 
     const canPan = isRightClick || (isLeftClick && (activeMode !== 'edit' || activeSubTool === 'select'));
     if (!canPan) return;
-    if ((e.target as HTMLElement).closest(`.${styles.splitHandle}`)) return;
-    if ((e.target as HTMLElement).closest(`.${styles.buttonGroup}`)) return;
+
+    const target = e.target as HTMLElement | null;
+    if (
+      target?.closest(
+        'button, input, select, textarea, [data-role="tool-palette"], [data-role="floating-hud"], [data-role="video-timeline"], [data-no-pan="true"], [class*="toolPalette"], [class*="hud"]'
+      )
+    ) {
+      return;
+    }
+    if (target?.closest(`.${styles.splitHandle}`)) return;
+    if (target?.closest(`.${styles.buttonGroup}`)) return;
 
     isDraggingRef.current = true;
     dragStartRef.current = {
@@ -387,8 +460,17 @@ export const Viewport: React.FC = () => {
   // Double click toggles between fit (1.0) and 2.5x zoom
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (activeSubTool !== 'select') return;
-    if ((e.target as HTMLElement).closest(`.${styles.splitHandle}`)) return;
-    if ((e.target as HTMLElement).closest(`.${styles.buttonGroup}`)) return;
+
+    const target = e.target as HTMLElement | null;
+    if (
+      target?.closest(
+        'button, input, select, textarea, [data-role="tool-palette"], [data-role="floating-hud"], [data-role="video-timeline"], [data-no-pan="true"], [class*="toolPalette"], [class*="hud"]'
+      )
+    ) {
+      return;
+    }
+    if (target?.closest(`.${styles.splitHandle}`)) return;
+    if (target?.closest(`.${styles.buttonGroup}`)) return;
 
     if (zoom <= 1.05 && viewportRef.current) {
       const rect = viewportRef.current.getBoundingClientRect();
@@ -432,7 +514,7 @@ export const Viewport: React.FC = () => {
 
   if (!current) {
     return (
-      <div className={styles.viewport}>
+      <div ref={viewportRef} className={styles.viewport}>
         <div className={styles.emptyState}>
           <svg
             className={styles.emptyIcon}

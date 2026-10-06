@@ -49,7 +49,7 @@ if [ "$VERSION" = "latest" ]; then
     echo "==> Detecting latest release..."
     TAG=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
     if [ -z "$TAG" ]; then
-        TAG="v0.1.0"
+        TAG="0.1.0"
     fi
 else
     TAG="$VERSION"

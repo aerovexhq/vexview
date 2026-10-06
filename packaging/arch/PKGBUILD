@@ -9,7 +9,7 @@ license=('MIT')
 depends=('webkit2gtk-4.1' 'gtk3' 'ffmpeg')
 provides=('vexview')
 conflicts=('vexview')
-source=("${url}/releases/download/v${pkgver}/vexview-linux-x86_64.tar.gz")
+source=("${url}/releases/download/${pkgver}/vexview-linux-x86_64.tar.gz")
 sha256sums=('SKIP')
 
 package() {

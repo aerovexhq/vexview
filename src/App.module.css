@@ -6,6 +6,14 @@
   background-color: var(--bg-canvas);
   position: relative;
   overflow: hidden;
+  box-sizing: border-box;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 8px 32px rgba(0, 0, 0, 0.45);
+  border-radius: 8px;
+}
+
+.appContainer.maximized {
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .mainArea {
@@ -13,4 +21,82 @@
   display: flex;
   position: relative;
   overflow: hidden;
+}
+
+/* Frameless Window Edge Resize Handles */
+.resizeTop,
+.resizeBottom,
+.resizeLeft,
+.resizeRight,
+.resizeTopLeft,
+.resizeTopRight,
+.resizeBottomLeft,
+.resizeBottomRight {
+  position: absolute;
+  z-index: 9999;
+  user-select: none;
+}
+
+.resizeTop {
+  top: 0;
+  left: 10px;
+  right: 10px;
+  height: 5px;
+  cursor: ns-resize;
+}
+
+.resizeBottom {
+  bottom: 0;
+  left: 10px;
+  right: 10px;
+  height: 5px;
+  cursor: ns-resize;
+}
+
+.resizeLeft {
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 5px;
+  cursor: ew-resize;
+}
+
+.resizeRight {
+  right: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 5px;
+  cursor: ew-resize;
+}
+
+.resizeTopLeft {
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nwse-resize;
+}
+
+.resizeTopRight {
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nesw-resize;
+}
+
+.resizeBottomLeft {
+  bottom: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nesw-resize;
+}
+
+.resizeBottomRight {
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nwse-resize;
 }

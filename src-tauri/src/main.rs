@@ -725,6 +725,48 @@ fn exit_application(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn minimize_window(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.minimize().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn toggle_maximize_window(window: tauri::WebviewWindow) -> Result<bool, String> {
+    if window.is_maximized().unwrap_or(false) {
+        window.unmaximize().map_err(|e| e.to_string())?;
+        Ok(false)
+    } else {
+        window.maximize().map_err(|e| e.to_string())?;
+        Ok(true)
+    }
+}
+
+#[tauri::command]
+fn close_window(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.close().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn is_window_maximized(window: tauri::WebviewWindow) -> bool {
+    window.is_maximized().unwrap_or(false)
+}
+
+#[tauri::command]
+fn start_window_resize(window: tauri::Window, direction: String) -> Result<(), String> {
+    let dir = match direction.to_lowercase().as_str() {
+        "east" | "e" | "right" => tauri_runtime::ResizeDirection::East,
+        "west" | "w" | "left" => tauri_runtime::ResizeDirection::West,
+        "north" | "n" | "top" => tauri_runtime::ResizeDirection::North,
+        "south" | "s" | "bottom" => tauri_runtime::ResizeDirection::South,
+        "northeast" | "ne" | "top-right" => tauri_runtime::ResizeDirection::NorthEast,
+        "northwest" | "nw" | "top-left" => tauri_runtime::ResizeDirection::NorthWest,
+        "southeast" | "se" | "bottom-right" => tauri_runtime::ResizeDirection::SouthEast,
+        "southwest" | "sw" | "bottom-left" => tauri_runtime::ResizeDirection::SouthWest,
+        _ => return Err("Invalid resize direction".into()),
+    };
+    window.start_resize_dragging(dir).map_err(|e| e.to_string())
+}
+
 fn main() {
     let args = cli::parse_args(std::env::args());
 
@@ -839,6 +881,11 @@ fn main() {
             extract_video_audio,
             extract_burst_frames,
             copy_image_to_clipboard,
+            minimize_window,
+            toggle_maximize_window,
+            close_window,
+            is_window_maximized,
+            start_window_resize,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

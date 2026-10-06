@@ -9,7 +9,7 @@ import { InspectorModal } from './components/InspectorModal';
 import { SettingsModal } from './components/SettingsModal';
 import { FileTypeBadge } from './components/FileTypeBadge';
 import { useViewerStore } from './stores/useViewerStore';
-import { getCliOptions } from './lib/ipc';
+import { getCliOptions, startWindowResize, isWindowMaximized } from './lib/ipc';
 import styles from './App.module.css';
 
 export const App: React.FC = () => {
@@ -38,6 +38,16 @@ export const App: React.FC = () => {
   } = useViewerStore();
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
+
+  useEffect(() => {
+    isWindowMaximized().then(setIsMaximized).catch(() => {});
+    const handleResize = () => {
+      isWindowMaximized().then(setIsMaximized).catch(() => {});
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Load CLI options or current directory on initial mount
   useEffect(() => {
@@ -200,7 +210,19 @@ export const App: React.FC = () => {
   ]);
 
   return (
-    <div className={styles.appContainer}>
+    <div className={`${styles.appContainer} ${isMaximized ? styles.maximized : ''}`}>
+      {!isMaximized && (
+        <>
+          <div className={styles.resizeTop} onPointerDown={() => startWindowResize('top')} />
+          <div className={styles.resizeBottom} onPointerDown={() => startWindowResize('bottom')} />
+          <div className={styles.resizeLeft} onPointerDown={() => startWindowResize('left')} />
+          <div className={styles.resizeRight} onPointerDown={() => startWindowResize('right')} />
+          <div className={styles.resizeTopLeft} onPointerDown={() => startWindowResize('top-left')} />
+          <div className={styles.resizeTopRight} onPointerDown={() => startWindowResize('top-right')} />
+          <div className={styles.resizeBottomLeft} onPointerDown={() => startWindowResize('bottom-left')} />
+          <div className={styles.resizeBottomRight} onPointerDown={() => startWindowResize('bottom-right')} />
+        </>
+      )}
       <Titlebar onOpenSettings={() => setIsSettingsOpen(true)} />
       <div className={styles.mainArea}>
         <Viewport />

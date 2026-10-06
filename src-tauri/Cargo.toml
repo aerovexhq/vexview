@@ -23,3 +23,4 @@ env_logger = { workspace = true }
 base64 = "0.22"
 rfd = "0.15"
 arboard = "3"
+tauri-runtime = "2"

@@ -303,6 +303,31 @@ export async function getCliTarget(): Promise<string | null> {
   return await invoke<string | null>('get_cli_target');
 }
 
+export async function minimizeWindow(): Promise<void> {
+  if (!isTauri) return;
+  return await invoke<void>('minimize_window');
+}
+
+export async function toggleMaximizeWindow(): Promise<boolean> {
+  if (!isTauri) return false;
+  return await invoke<boolean>('toggle_maximize_window');
+}
+
+export async function closeWindow(): Promise<void> {
+  if (!isTauri) return;
+  return await invoke<void>('close_window');
+}
+
+export async function isWindowMaximized(): Promise<boolean> {
+  if (!isTauri) return false;
+  return await invoke<boolean>('is_window_maximized');
+}
+
+export async function startWindowResize(direction: string): Promise<void> {
+  if (!isTauri) return;
+  return await invoke<void>('start_window_resize', { direction });
+}
+
 export interface StrokePoint {
   x: number;
   y: number;

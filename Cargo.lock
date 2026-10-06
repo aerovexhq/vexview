@@ -6201,6 +6201,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
+ "tauri-runtime",
  "vex-core",
  "vex-edit",
  "vex-image",

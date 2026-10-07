@@ -71,8 +71,11 @@ jobs:
 
       - name: Compile Vexview Release Binary
         run: |
-          cargo build --release -p vex-gui
-          strip target/release/vexview || true
+          npm ci || npm install
+          npm run build
+          cargo build --release -p vexview-app
+          cp target/release/vexview-app target/release/vexview
+          strip target/release/vexview target/release/vexview-app || true
 
       - name: Assemble Debian Package and Portable Tarball
         run: |

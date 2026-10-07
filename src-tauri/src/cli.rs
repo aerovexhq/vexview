@@ -15,6 +15,8 @@ pub struct CliArgs {
     pub completions: Option<String>,
     pub help: bool,
     pub version: bool,
+    pub daemon: bool,
+    pub quit: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -58,6 +60,10 @@ pub fn parse_args<I: IntoIterator<Item = String>>(args: I) -> CliArgs {
             parsed.help = true;
         } else if arg == "-V" || arg == "--version" {
             parsed.version = true;
+        } else if arg == "-d" || arg == "--daemon" || arg == "--background" {
+            parsed.daemon = true;
+        } else if arg == "--quit" {
+            parsed.quit = true;
         } else if arg == "-e" || arg == "--edit" {
             parsed.edit = true;
         } else if arg == "-f" || arg == "--fullscreen" {
@@ -129,6 +135,8 @@ pub fn print_help() {
         ARGUMENTS:\n    \
             [PATH...]                  File or folder path to open (image or video)\n\n\
         OPTIONS:\n    \
+            -d, --daemon               Run as persistent background pre-warming service\n    \
+                --quit                 Terminate running background service\n    \
             -e, --edit                 Open directly in edit and annotation mode\n    \
             -f, --fullscreen           Launch application in fullscreen mode\n    \
             -s, --slideshow            Start slideshow mode immediately\n    \

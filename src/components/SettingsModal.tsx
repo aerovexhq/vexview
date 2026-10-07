@@ -116,6 +116,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
+          {/* Performance & Background Daemon */}
+          <div className={styles.section}>
+            <div className={styles.sectionLabel}>Performance & Background Service</div>
+
+            <div className={styles.settingRow}>
+              <div className={styles.settingInfo}>
+                <span className={styles.settingName}>Instant Launch Daemon</span>
+                <span className={styles.settingDesc}>
+                  Keep vexview active in the background after closing window for instant launch
+                </span>
+              </div>
+              <ToggleSwitch
+                checked={config.keep_running_in_background}
+                onChange={() => handleToggle('keep_running_in_background')}
+                ariaLabel="Instant Launch Daemon"
+              />
+            </div>
+
+            <div className={styles.settingRow}>
+              <div className={styles.settingInfo}>
+                <span className={styles.settingName}>Start Service on System Login</span>
+                <span className={styles.settingDesc}>
+                  Pre-warm background service when logging into your desktop session
+                </span>
+              </div>
+              <ToggleSwitch
+                checked={config.autostart_at_boot}
+                onChange={() => handleToggle('autostart_at_boot')}
+                ariaLabel="Start Service on System Login"
+              />
+            </div>
+          </div>
+
           {/* Media Behavior */}
           <div className={styles.section}>
             <div className={styles.sectionLabel}>Media Playback</div>

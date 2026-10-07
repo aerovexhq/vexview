@@ -56,12 +56,46 @@ pub fn load_image<P: AsRef<Path>>(path: P) -> Result<LoadedImage, ImageLoadError
 
     // Apply EXIF orientation
     img = apply_orientation(img, meta.orientation);
+    let (final_w, final_h) = img.dimensions();
+    let final_meta = ImageMetadata {
+        width: final_w,
+        height: final_h,
+        ..meta
+    };
 
     Ok(LoadedImage {
         path: path_ref.to_path_buf(),
         image: img,
-        metadata: meta,
+        metadata: final_meta,
     })
+}
+
+/// Probes image dimensions and metadata from header chunks without decoding full pixel data.
+pub fn probe_image_metadata<P: AsRef<Path>>(path: P) -> Result<ImageMetadata, ImageLoadError> {
+    let path_ref = path.as_ref();
+    let ext = path_ref
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|s| s.to_lowercase())
+        .unwrap_or_default();
+
+    if ext == "svg" || ext == "svgz" {
+        let rgba = render_svg(path_ref, None, None)?;
+        return Ok(ImageMetadata {
+            width: rgba.width(),
+            height: rgba.height(),
+            orientation: 1,
+            ..Default::default()
+        });
+    }
+
+    let (w, h) = image::image_dimensions(path_ref)?;
+    let mut meta = extract_metadata(path_ref, w, h);
+    if matches!(meta.orientation, 5 | 6 | 7 | 8) {
+        meta.width = h;
+        meta.height = w;
+    }
+    Ok(meta)
 }
 
 /// Corrects image rotation and flipping according to standard EXIF orientation tag (1-8).
@@ -149,5 +183,19 @@ mod tests {
         let loaded = load_image(&svg_path).expect("svg should render to dynamic image");
         assert_eq!(loaded.image.dimensions(), (100, 80));
         let _ = std::fs::remove_file(svg_path);
+    }
+
+    #[test]
+    fn test_probe_image_metadata() {
+        let temp_dir = std::env::temp_dir();
+        let png_path = temp_dir.join("vex_test_probe.png");
+        let img = RgbaImage::new(320, 240);
+        img.save(&png_path).expect("save test png");
+
+        let meta = probe_image_metadata(&png_path).expect("probe metadata succeeds");
+        assert_eq!(meta.width, 320);
+        assert_eq!(meta.height, 240);
+        assert_eq!(meta.orientation, 1);
+        let _ = std::fs::remove_file(png_path);
     }
 }

@@ -97,6 +97,39 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  // Listen to incoming target files forwarded by CLI single-instance or warm background service
+  useEffect(() => {
+    let unlistenTarget: (() => void) | undefined;
+    import('@tauri-apps/api/event')
+      .then(({ listen }) => {
+        listen<{
+          target?: string;
+          targets?: string[];
+          edit?: boolean;
+          fullscreen?: boolean;
+          slideshow?: boolean;
+        }>('cli-open-target', (event) => {
+          const payload = event.payload;
+          if (payload.target) {
+            openTargetFile(payload.target);
+          }
+          if (payload.edit) {
+            setActiveMode('edit');
+          }
+          if (payload.slideshow) {
+            setSlideshow(true);
+          }
+        }).then((u) => {
+          unlistenTarget = u;
+        });
+      })
+      .catch(() => {});
+
+    return () => {
+      if (unlistenTarget) unlistenTarget();
+    };
+  }, [openTargetFile, setActiveMode, setSlideshow]);
+
   // Global tactile keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

@@ -35,8 +35,8 @@ impl Default for ViewerConfig {
             cache_capacity: 10,
             background_dark: true,
             show_filmstrip: true,
-            autostart_at_boot: false,
-            keep_running_in_background: false,
+            autostart_at_boot: true,
+            keep_running_in_background: true,
         }
     }
 }
@@ -45,6 +45,33 @@ impl ViewerConfig {
     fn config_path() -> Option<PathBuf> {
         ProjectDirs::from("org", "aerovexhq", "vexview")
             .map(|dirs| dirs.config_dir().join("config.json"))
+    }
+
+    /// Synchronizes desktop autostart configuration with system desktop environment.
+    pub fn sync_autostart(&self) {
+        #[cfg(target_os = "linux")]
+        {
+            if let Some(base_dirs) = directories::BaseDirs::new() {
+                let autostart_dir = base_dirs.config_dir().join("autostart");
+                let desktop_file = autostart_dir.join("vexview.desktop");
+                if self.autostart_at_boot {
+                    if let Ok(()) = fs::create_dir_all(&autostart_dir) {
+                        let content = "[Desktop Entry]\n\
+                            Type=Application\n\
+                            Name=vexview Service\n\
+                            Comment=vexview Background Pre-warming Service\n\
+                            Exec=vexview --daemon\n\
+                            Terminal=false\n\
+                            Categories=Graphics;Utility;\n\
+                            StartupNotify=false\n\
+                            X-GNOME-Autostart-enabled=true\n";
+                        let _ = fs::write(&desktop_file, content);
+                    }
+                } else if desktop_file.exists() {
+                    let _ = fs::remove_file(&desktop_file);
+                }
+            }
+        }
     }
 
     /// Loads configuration from disk, or returns default if not present or corrupt.
@@ -63,6 +90,7 @@ impl ViewerConfig {
 
     /// Saves the current configuration to disk.
     pub fn save(&self) -> Result<(), std::io::Error> {
+        self.sync_autostart();
         if let Some(path) = Self::config_path() {
             if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent)?;
@@ -81,8 +109,8 @@ mod tests {
     #[test]
     fn test_viewer_config_defaults_and_roundtrip() {
         let config = ViewerConfig::default();
-        assert!(!config.autostart_at_boot);
-        assert!(!config.keep_running_in_background);
+        assert!(config.autostart_at_boot);
+        assert!(config.keep_running_in_background);
         assert!(config.auto_play_videos);
         assert_eq!(config.default_zoom_mode, ZoomMode::FitToWindow);
 

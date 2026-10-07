@@ -2,14 +2,24 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod cli;
+mod ipc_service;
 
 use base64::prelude::*;
 use vex_core::{MediaItem, ScanFilter};
 use vex_edit::ExportFormat;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
+use std::num::NonZeroUsize;
 use std::path::Path;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
+
+static THUMB_CACHE: OnceLock<Mutex<lru::LruCache<String, String>>> = OnceLock::new();
+
+fn get_thumb_cache() -> &'static Mutex<lru::LruCache<String, String>> {
+    THUMB_CACHE.get_or_init(|| {
+        Mutex::new(lru::LruCache::new(NonZeroUsize::new(300).unwrap()))
+    })
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct ImageDetailResponse {
@@ -147,9 +157,9 @@ fn load_image_detail(file_path: String) -> Result<ImageDetailResponse, String> {
         });
     }
 
-    // For raster images: extract metadata quickly without recompressing
-    let loaded = vex_image::load_image(&clean)
-        .map_err(|e| format!("Failed to load image: {}", e))?;
+    // For raster images: extract metadata quickly without decompressing full image
+    let meta = vex_image::probe_image_metadata(&clean)
+        .map_err(|e| format!("Failed to probe image metadata: {}", e))?;
 
     // Read original raw file bytes directly for instant <1ms base64 response
     let raw_bytes = std::fs::read(&clean)
@@ -168,12 +178,12 @@ fn load_image_detail(file_path: String) -> Result<ImageDetailResponse, String> {
     let data_url = format!("data:{};base64,{}", mime, b64);
 
     Ok(ImageDetailResponse {
-        width: loaded.metadata.width,
-        height: loaded.metadata.height,
-        orientation: loaded.metadata.orientation,
-        make: loaded.metadata.make,
-        model: loaded.metadata.model,
-        date_time: loaded.metadata.date_time,
+        width: meta.width,
+        height: meta.height,
+        orientation: meta.orientation,
+        make: meta.make,
+        model: meta.model,
+        date_time: meta.date_time,
         data_url,
     })
 }
@@ -181,6 +191,13 @@ fn load_image_detail(file_path: String) -> Result<ImageDetailResponse, String> {
 #[tauri::command]
 fn get_thumbnail_base64(file_path: String, max_size: u32) -> Result<String, String> {
     let clean = clean_file_path(&file_path);
+    let cache_key = format!("{}:{}", clean, max_size);
+    if let Ok(mut cache) = get_thumb_cache().lock() {
+        if let Some(cached) = cache.get(&cache_key) {
+            return Ok(cached.clone());
+        }
+    }
+
     let loaded =
         vex_image::load_image(&clean).map_err(|e| format!("Failed to load image: {}", e))?;
     let thumb = vex_image::generate_thumbnail(&loaded.image, max_size, max_size)
@@ -192,7 +209,11 @@ fn get_thumbnail_base64(file_path: String, max_size: u32) -> Result<String, Stri
         .map_err(|e| format!("Failed to encode thumbnail: {}", e))?;
 
     let b64 = BASE64_STANDARD.encode(buffer.into_inner());
-    Ok(format!("data:image/png;base64,{}", b64))
+    let data_url = format!("data:image/png;base64,{}", b64);
+    if let Ok(mut cache) = get_thumb_cache().lock() {
+        cache.put(cache_key, data_url.clone());
+    }
+    Ok(data_url)
 }
 
 #[tauri::command]
@@ -824,7 +845,64 @@ fn main() {
         }
     }
 
-    let launch_options = args.to_launch_options();
+    // Canonicalize targets to absolute paths so daemon resolves files regardless of cwd
+    let canonical_targets: Vec<String> = args
+        .targets
+        .iter()
+        .map(|t| clean_file_path(t))
+        .map(|t| {
+            let p = Path::new(&t);
+            if p.is_absolute() {
+                t
+            } else if let Ok(abs) = std::env::current_dir().map(|cwd| cwd.join(p)) {
+                abs.to_string_lossy().to_string()
+            } else {
+                t
+            }
+        })
+        .collect();
+
+    if args.quit {
+        match ipc_service::try_send_to_instance(&ipc_service::IpcMessage::Quit) {
+            Ok(true) => {
+                println!("vexview daemon stopped.");
+                std::process::exit(0);
+            }
+            _ => {
+                println!("vexview is not running.");
+                std::process::exit(0);
+            }
+        }
+    }
+
+    if args.daemon {
+        match ipc_service::try_send_to_instance(&ipc_service::IpcMessage::Ping) {
+            Ok(true) => {
+                println!("vexview background daemon is already running.");
+                std::process::exit(0);
+            }
+            _ => {}
+        }
+    } else {
+        // Attempt fast forwarding to warm background daemon
+        let open_payload = ipc_service::OpenPayload {
+            target: canonical_targets.first().cloned(),
+            targets: canonical_targets.clone(),
+            edit: args.edit,
+            fullscreen: args.fullscreen,
+            slideshow: args.slideshow,
+        };
+        if let Ok(true) =
+            ipc_service::try_send_to_instance(&ipc_service::IpcMessage::Open(open_payload))
+        {
+            // Forwarded to background daemon in < 5ms!
+            std::process::exit(0);
+        }
+    }
+
+    let mut launch_options = args.to_launch_options();
+    launch_options.target = canonical_targets.first().cloned();
+    launch_options.targets = canonical_targets;
     let _ = CLI_OPTIONS.set(launch_options.clone());
 
     #[cfg(target_os = "linux")]
@@ -836,18 +914,26 @@ fn main() {
 
     env_logger::init();
 
+    // Ensure autostart desktop entry is synchronized on launch
+    let config = vex_core::ViewerConfig::load();
+    config.sync_autostart();
+
+    let is_daemon = args.daemon;
     let fullscreen_flag = launch_options.fullscreen;
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(move |app| {
             use tauri::Manager;
+            ipc_service::start_ipc_listener(app.handle().clone());
             if let Some(window) = app.get_webview_window("main") {
                 if fullscreen_flag {
                     let _ = window.set_fullscreen(true);
                 }
-                let _ = window.show();
-                let _ = window.set_focus();
+                if !is_daemon {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
             }
             Ok(())
         })

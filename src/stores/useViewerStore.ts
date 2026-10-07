@@ -534,33 +534,48 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
     try {
       const cleanPath = filePath.replace(/^file:\/\//, '');
       const parentDir = cleanPath.substring(0, cleanPath.lastIndexOf('/')) || '.';
-      set({ loading: true, error: null, folderPath: parentDir });
+      const fileName = cleanPath.split('/').pop() || 'media';
+      const ext = fileName.split('.').pop()?.toLowerCase() || '';
+      const isVid = ['mp4', 'mkv', 'webm', 'mov', 'avi', 'flv', 'wmv'].includes(ext);
+      const isSvg = ext === 'svg' || ext === 'svgz';
+      const initialItem: MediaItem = {
+        path: cleanPath,
+        file_name: fileName,
+        media_type: isVid ? 'Video' : isSvg ? 'Svg' : 'Image',
+        file_size: 0,
+      };
 
-      let items: MediaItem[] = [];
-      try {
-        items = await scanFolder(parentDir);
-      } catch {
-        items = [];
-      }
+      // Immediately display clicked target file in 0ms without blocking on directory scan
+      set({
+        folderPath: parentDir,
+        items: [initialItem],
+        currentIndex: 0,
+        loading: false,
+        error: null,
+      });
 
-      let targetIdx = items.findIndex((it) => it.path === cleanPath || it.path === filePath);
-      if (targetIdx === -1) {
-        const fileName = cleanPath.split('/').pop() || 'media';
-        const ext = fileName.split('.').pop()?.toLowerCase() || '';
-        const isVid = ['mp4', 'mkv', 'webm', 'mov', 'avi', 'flv', 'wmv'].includes(ext);
-        const isSvg = ext === 'svg' || ext === 'svgz';
-        const singleItem: MediaItem = {
-          path: cleanPath,
-          file_name: fileName,
-          media_type: isVid ? 'Video' : isSvg ? 'Svg' : 'Image',
-          file_size: 0,
-        };
-        items = [singleItem, ...items];
-        targetIdx = 0;
-      }
+      const selectPromise = get().selectIndex(0);
 
-      set({ items, currentIndex: targetIdx, loading: false });
-      await get().selectIndex(targetIdx);
+      // Asynchronously scan parent directory in the background to populate filmstrip and next/prev list
+      scanFolder(parentDir)
+        .then((scanned) => {
+          if (!scanned || scanned.length === 0) return;
+          let targetIdx = scanned.findIndex(
+            (it) => it.path === cleanPath || it.path === filePath
+          );
+          let finalItems = scanned;
+          if (targetIdx === -1) {
+            finalItems = [initialItem, ...scanned];
+            targetIdx = 0;
+          }
+          const current = get();
+          if (current.folderPath === parentDir) {
+            set({ items: finalItems, currentIndex: targetIdx });
+          }
+        })
+        .catch(() => {});
+
+      await selectPromise;
     } catch (e) {
       set({ error: String(e), loading: false });
     }

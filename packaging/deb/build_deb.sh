@@ -20,6 +20,8 @@ mkdir -p "${BUILD_ROOT}/usr/share/icons/hicolor/scalable/apps"
 mkdir -p "${BUILD_ROOT}/usr/share/bash-completion/completions"
 mkdir -p "${BUILD_ROOT}/usr/share/zsh/vendor-completions"
 mkdir -p "${BUILD_ROOT}/usr/share/fish/vendor_completions.d"
+mkdir -p "${BUILD_ROOT}/usr/lib/systemd/user"
+mkdir -p "${BUILD_ROOT}/etc/xdg/autostart"
 
 # Find or build release binary
 if [ -f "target/release/vexview-app" ]; then
@@ -43,6 +45,39 @@ install -m 644 "packaging/vexview.svg" "${BUILD_ROOT}/usr/share/icons/hicolor/sc
 install -m 644 "packaging/completions/vexview.bash" "${BUILD_ROOT}/usr/share/bash-completion/completions/vexview"
 install -m 644 "packaging/completions/_vexview" "${BUILD_ROOT}/usr/share/zsh/vendor-completions/_vexview"
 install -m 644 "packaging/completions/vexview.fish" "${BUILD_ROOT}/usr/share/fish/vendor_completions.d/vexview.fish"
+
+# Systemd user background pre-warming service unit
+cat <<'EOF' > "${BUILD_ROOT}/usr/lib/systemd/user/vexview.service"
+[Unit]
+Description=vexview Background Pre-warming Service
+Documentation=https://github.com/aerovexhq/vexview
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/vexview --daemon
+Restart=on-failure
+RestartSec=3s
+Slice=app.slice
+
+[Install]
+WantedBy=graphical-session.target
+EOF
+
+# XDG Desktop autostart entry for pre-warming on login
+cat <<'EOF' > "${BUILD_ROOT}/etc/xdg/autostart/vexview.desktop"
+[Desktop Entry]
+Type=Application
+Name=vexview Service
+Comment=vexview Background Pre-warming Service
+Exec=/usr/bin/vexview --daemon
+Terminal=false
+Categories=Graphics;Utility;
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+EOF
+
 
 # Control file
 cat <<EOF > "${BUILD_ROOT}/DEBIAN/control"
@@ -158,6 +193,11 @@ if [ "$1" = "configure" ]; then
             done
         fi
     done
+
+    # Reload systemd units if systemctl is present
+    if which systemctl >/dev/null 2>&1; then
+        systemctl --global daemon-reload 2>/dev/null || true
+    fi
 fi
 
 exit 0

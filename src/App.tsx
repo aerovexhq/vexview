@@ -168,7 +168,7 @@ export const App: React.FC = () => {
           prevItem();
           break;
         case ' ':
-          if (current?.media_type === 'Video') {
+          if (current?.media_type === 'Video' || current?.media_type === 'Audio') {
             e.preventDefault();
             setIsPlaying(!isPlaying);
           }
@@ -194,7 +194,7 @@ export const App: React.FC = () => {
           break;
         case 't':
         case 'T':
-          if (current?.media_type === 'Video') {
+          if (current?.media_type === 'Video' || current?.media_type === 'Audio') {
             setActiveMode(activeMode === 'trim' ? 'view' : 'trim');
           }
           break;

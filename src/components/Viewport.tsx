@@ -62,7 +62,6 @@ export const Viewport: React.FC = () => {
     videoDetail,
     audioDetail,
     sequence,
-    addCurrentToSequence,
     newTimelineProject,
     loading,
     error,
@@ -77,7 +76,9 @@ export const Viewport: React.FC = () => {
     updateEditor,
     isPlaying,
     setIsPlaying,
+    currentTime,
     setCurrentTime,
+    duration,
     setDuration,
     seekTime,
     openMediaFile,
@@ -104,10 +105,81 @@ export const Viewport: React.FC = () => {
   const wheelRafRef = useRef<number | null>(null);
 
   const [isSplitting, setIsSplitting] = useState(false);
+  const [volume, setVolume] = useState(1.0);
+  const [isMuted, setIsMuted] = useState(false);
 
   const current = items[currentIndex];
   const isVideo = current?.media_type === 'Video';
   const isAudio = current?.media_type === 'Audio';
+
+  const formatAudioTime = (seconds: number) => {
+    if (isNaN(seconds) || seconds < 0) return '00:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
+  const handleAudioProgressPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || duration <= 0) return;
+    const trackEl = e.currentTarget;
+    try {
+      trackEl.setPointerCapture(e.pointerId);
+    } catch (_) {}
+
+    const updateProgress = (clientX: number) => {
+      const rect = trackEl.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      const newTime = ratio * duration;
+      setCurrentTime(newTime);
+      if (audioRef.current) {
+        audioRef.current.currentTime = newTime;
+      }
+    };
+
+    updateProgress(e.clientX);
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      updateProgress(moveEvent.clientX);
+    };
+
+    const onPointerUp = (upEvent: PointerEvent) => {
+      try {
+        trackEl.releasePointerCapture(upEvent.pointerId);
+      } catch (_) {}
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVol = parseFloat(e.target.value);
+    setVolume(newVol);
+    if (newVol > 0 && isMuted) {
+      setIsMuted(false);
+    }
+    if (audioRef.current) {
+      audioRef.current.volume = isMuted ? 0 : newVol;
+    }
+  };
+
+  const handleToggleMute = () => {
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    if (audioRef.current) {
+      audioRef.current.volume = nextMuted ? 0 : volume;
+    }
+  };
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = isMuted ? 0 : volume;
+    }
+  }, [volume, isMuted, isAudio]);
 
   // Synchronize internal refs with store coordinates
   useEffect(() => {
@@ -209,16 +281,19 @@ export const Viewport: React.FC = () => {
     const isVid = current.media_type === 'Video';
     const isAud = current.media_type === 'Audio';
 
+    if (isAud) {
+      panRef.current = { x: 0, y: 0 };
+      zoomRef.current = 1.0;
+      setZoomAndPan(1.0, { x: 0, y: 0 });
+      return;
+    }
+
     const mw = isVid
       ? (videoDetail?.width || videoRef.current?.videoWidth || 1920)
-      : isAud
-      ? 520
       : (imageDetail?.width || imgRef.current?.naturalWidth || 1920);
 
     const mh = isVid
       ? (videoDetail?.height || videoRef.current?.videoHeight || 1080)
-      : isAud
-      ? 380
       : (imageDetail?.height || imgRef.current?.naturalHeight || 1080);
 
     if (mw <= 0 || mh <= 0) return;
@@ -284,8 +359,8 @@ export const Viewport: React.FC = () => {
         return;
       }
 
-      // If no media loaded, do not capture wheel
-      if (!current) return;
+      // If no media loaded or if audio file, do not capture wheel
+      if (!current || isAudio) return;
 
       e.preventDefault();
 
@@ -390,10 +465,11 @@ export const Viewport: React.FC = () => {
         wheelRafRef.current = null;
       }
     };
-  }, [current, setZoomAndPan, setPan]);
+  }, [current, isAudio, setZoomAndPan, setPan]);
 
   // Pointer drag pan: middle-click or right-click in ANY mode (including edit mode); left-click in view mode or select tool
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isAudio) return;
     const isMiddleClick = e.button === 1;
     const isRightClick = e.button === 2;
     const isLeftClick = e.button === 0;
@@ -487,7 +563,7 @@ export const Viewport: React.FC = () => {
 
   // Double click toggles between fit (1.0) and 2.5x zoom
   const handleDoubleClick = (e: React.MouseEvent) => {
-    if (activeSubTool !== 'select') return;
+    if (isAudio || activeSubTool !== 'select') return;
 
     const target = e.target as HTMLElement | null;
     if (
@@ -525,14 +601,14 @@ export const Viewport: React.FC = () => {
 
   // Synchronize HTML5 video/audio elements with isPlaying state
   useEffect(() => {
-    const mediaEl = videoRef.current || audioRef.current;
+    const mediaEl = isVideo ? videoRef.current : isAudio ? audioRef.current : null;
     if (!mediaEl) return;
     if (isPlaying) {
       mediaEl.play().catch(() => {});
     } else {
       mediaEl.pause();
     }
-  }, [isPlaying]);
+  }, [isPlaying, isVideo, isAudio]);
 
   // Handle seeking from timeline
   useEffect(() => {
@@ -733,221 +809,241 @@ export const Viewport: React.FC = () => {
         </div>
       )}
 
-      <div
-        ref={canvasRef}
-        className={styles.canvasContainer}
-        style={{
-          transform: `translate3d(${pan.x}px, ${pan.y}px, 0px) scale(${zoom})`,
-        }}
-      >
-        <div style={{ position: 'relative', display: 'inline-block' }}>
-          {isVideo ? (
-            <video
-              ref={videoRef}
-              src={assetUrl}
-              className={styles.videoElement}
-              onLoadedMetadata={(e) => {
-                const d = (e.target as HTMLVideoElement).duration;
-                if (d > 0) setDuration(d);
-                centerAndFitMedia();
-              }}
-              onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
-              loop
-              playsInline
-            />
-          ) : isAudio ? (
-            <div className={styles.audioStudioContainer}>
-              <audio
-                ref={audioRef}
-                src={assetUrl}
-                onLoadedMetadata={(e) => {
-                  const d = (e.target as HTMLAudioElement).duration;
-                  if (d > 0) setDuration(d);
-                  centerAndFitMedia();
-                }}
-                onTimeUpdate={(e) => setCurrentTime((e.target as HTMLAudioElement).currentTime)}
-                onEnded={() => setIsPlaying(false)}
-              />
+      {isAudio ? (
+        <div className={styles.audioViewportContainer}>
+          <audio
+            ref={audioRef}
+            src={assetUrl}
+            onLoadedMetadata={(e) => {
+              const d = (e.target as HTMLAudioElement).duration;
+              if (d > 0) setDuration(d);
+            }}
+            onTimeUpdate={(e) => setCurrentTime((e.target as HTMLAudioElement).currentTime)}
+            onEnded={() => setIsPlaying(false)}
+          />
 
-              <div className={styles.audioStudioCard}>
-                {/* Center Vinyl / Acoustic Pulse Disc */}
-                <div className={`${styles.soundwaveDisc} ${isPlaying ? styles.discSpinning : ''}`}>
-                  <div className={styles.discGrooves}>
-                    <div className={styles.discInner}>
-                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#a855f7" strokeWidth="2.2">
-                        <path d="M9 18V5l12-2v13" />
-                        <circle cx="6" cy="18" r="3" fill="#a855f7" />
-                        <circle cx="18" cy="16" r="3" fill="#a855f7" />
-                      </svg>
-                    </div>
+          <div className={styles.audioProgressCard} data-role="audio-card">
+            {/* Header: File Name, Badge, Spec Pill, Edit Mode Button */}
+            <div className={styles.audioHeaderRow}>
+              <div className={styles.audioMetaLeft}>
+                <div className={styles.audioFileIcon}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M9 18V5l12-2v13" />
+                    <circle cx="6" cy="18" r="3" />
+                    <circle cx="18" cy="16" r="3" />
+                  </svg>
+                </div>
+                <span className={styles.audioTitleText} title={current.file_name}>
+                  {audioDetail?.title || current.file_name}
+                </span>
+                <span className={styles.audioBadgeTag}>
+                  {audioDetail?.audio_codec
+                    ? audioDetail.audio_codec.toUpperCase()
+                    : (current.file_name.split('.').pop()?.toUpperCase() || 'AUDIO')}
+                </span>
+              </div>
+
+              <div className={styles.audioHeaderRight}>
+                {audioDetail?.sample_rate && (
+                  <span className={styles.audioSpecPill}>
+                    {audioDetail.sample_rate >= 1000
+                      ? `${(audioDetail.sample_rate / 1000).toFixed(1)} kHz`
+                      : `${audioDetail.sample_rate} Hz`}
+                  </span>
+                )}
+                {audioDetail?.channels && (
+                  <span className={styles.audioSpecPill}>
+                    {audioDetail.channels === 1
+                      ? 'Mono'
+                      : audioDetail.channels === 2
+                      ? 'Stereo'
+                      : `${audioDetail.channels}ch`}
+                  </span>
+                )}
+                <button
+                  className={styles.audioEditModeBtn}
+                  onClick={() => setActiveMode(activeMode === 'edit' ? 'view' : 'edit')}
+                  title="Open in Video / Audio Editor (E)"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                  </svg>
+                  {activeMode === 'edit' ? 'Close Editor' : 'Edit'}
+                </button>
+              </div>
+            </div>
+
+            {/* Controls: Play/Pause button, Progress Scrubber, Timecode, Volume */}
+            <div className={styles.audioControlsRow}>
+              <button
+                className={styles.audioMainPlayBtn}
+                onClick={() => setIsPlaying(!isPlaying)}
+                title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+              >
+                {isPlaying ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4" height="16" rx="1" />
+                    <rect x="14" y="4" width="4" height="16" rx="1" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: 2 }}>
+                    <polygon points="5 3 19 12 5 21 5 3" />
+                  </svg>
+                )}
+              </button>
+
+              <div className={styles.audioProgressBarSection}>
+                <div
+                  className={styles.audioProgressTrack}
+                  onPointerDown={handleAudioProgressPointerDown}
+                  title="Click or drag to seek"
+                >
+                  <div
+                    className={styles.audioProgressFill}
+                    style={{
+                      width: `${duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0}%`,
+                    }}
+                  >
+                    <div className={styles.audioProgressThumb} />
                   </div>
                 </div>
 
-                {/* Animated Spectrum Waveform Bars */}
-                <div className={styles.equalizerBars}>
-                  {Array.from({ length: 24 }).map((_, i) => (
-                    <span
-                      key={i}
-                      className={`${styles.eqBar} ${isPlaying ? styles.eqBarActive : ''}`}
-                      style={{
-                        animationDelay: `${(i * 0.08) % 1.2}s`,
-                        height: isPlaying ? `${16 + (Math.sin(i * 1.3) * 14 + 14)}px` : '6px',
-                      }}
-                    />
-                  ))}
-                </div>
-
-                {/* Track Metadata Header */}
-                <div className={styles.audioMetaHeader}>
-                  <h2 className={styles.audioTrackTitle}>
-                    {audioDetail?.title || current.file_name.replace(/\.[^/.]+$/, '')}
-                  </h2>
-                  <p className={styles.audioTrackArtist}>
-                    {audioDetail?.artist
-                      ? `${audioDetail.artist} — ${audioDetail.album || 'Single'}`
-                      : current.file_name}
-                  </p>
-                </div>
-
-                {/* Technical Specs Tags */}
-                <div className={styles.audioBadgesRow}>
-                  <span className={styles.audioSpecBadge}>
-                    {audioDetail?.audio_codec
-                      ? audioDetail.audio_codec.toUpperCase()
-                      : (current.file_name.split('.').pop()?.toUpperCase() || 'AUDIO')}
-                  </span>
-                  {audioDetail?.sample_rate && (
-                    <span className={styles.audioSpecBadge}>{audioDetail.sample_rate} Hz</span>
-                  )}
-                  {audioDetail?.channels && (
-                    <span className={styles.audioSpecBadge}>
-                      {audioDetail.channels === 1
-                        ? 'Mono'
-                        : audioDetail.channels === 2
-                        ? 'Stereo'
-                        : `${audioDetail.channels} Ch`}
-                    </span>
-                  )}
-                  {audioDetail?.bit_rate && (
-                    <span className={styles.audioSpecBadge}>
-                      {Math.round(audioDetail.bit_rate / 1000)} kbps
-                    </span>
-                  )}
-                </div>
-
-                {/* Quick Action Buttons */}
-                <div className={styles.audioQuickActions}>
-                  <button
-                    className={styles.audioActionBtn}
-                    onClick={() => {
-                      setActiveMode(activeMode === 'trim' ? 'view' : 'trim');
-                    }}
-                    title="Trim & Cut Audio Track"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="6" cy="6" r="3" />
-                      <circle cx="6" cy="18" r="3" />
-                      <line x1="20" y1="4" x2="8.12" y2="15.88" />
-                      <line x1="14.47" y1="14.48" x2="20" y2="20" />
-                      <line x1="8.12" y1="8.12" x2="12" y2="12" />
-                    </svg>
-                    {activeMode === 'trim' ? 'Close Trimmer' : 'Trim Audio'}
-                  </button>
-
-                  <button
-                    className={styles.audioActionBtn}
-                    onClick={() => {
-                      setActiveMode('edit');
-                    }}
-                    title="Open Studio Drawer for Format Conversion"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-                    </svg>
-                    Convert / Studio
-                  </button>
-
-                  <button
-                    className={styles.audioActionBtn}
-                    onClick={addCurrentToSequence}
-                    title="Add track to Multi-Track Sequence Storyboard"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <line x1="12" y1="5" x2="12" y2="19" />
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                    + Storyboard
-                  </button>
+                <div className={styles.audioTimeDisplayRow}>
+                  <span>{formatAudioTime(currentTime)}</span>
+                  <span>{formatAudioTime(duration)}</span>
                 </div>
               </div>
-            </div>
-          ) : activeMode === 'edit' && editor.previewUrl ? (
-            /* Split comparison mode */
-            <div className={styles.splitContainer}>
-              <img
-                ref={imgRef}
-                src={imageDetail?.data_url || assetUrl}
-                alt="Original"
-                className={styles.splitOriginal}
-                onLoad={() => centerAndFitMedia()}
-              />
-              <div
-                className={styles.splitEdited}
-                style={{ width: `${editor.splitPosition}%` }}
-              >
-                <img
-                  src={editor.previewUrl}
-                  alt="Edited"
-                  style={{
-                    transform: `rotate(${editor.rotation}deg) scaleX(${editor.flipH ? -1 : 1}) scaleY(${editor.flipV ? -1 : 1})`,
-                    filter: getFilterStyle(),
-                  }}
+
+              <div className={styles.audioVolumeSection}>
+                <button
+                  className={styles.audioVolumeIconBtn}
+                  onClick={handleToggleMute}
+                  title={isMuted ? 'Unmute' : 'Mute'}
+                >
+                  {isMuted || volume === 0 ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                      <line x1="23" y1="9" x2="17" y2="15" />
+                      <line x1="17" y1="9" x2="23" y2="15" />
+                    </svg>
+                  ) : volume < 0.5 ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                    </svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+                    </svg>
+                  )}
+                </button>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.02"
+                  value={isMuted ? 0 : volume}
+                  onChange={handleVolumeChange}
+                  className={styles.audioVolumeRange}
+                  title={`Volume: ${Math.round((isMuted ? 0 : volume) * 100)}%`}
                 />
               </div>
-              <div
-                className={styles.splitHandle}
-                style={{ left: `${editor.splitPosition}%` }}
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  setIsSplitting(true);
-                }}
-              >
-                <div className={styles.handleGrip}>↔</div>
-              </div>
             </div>
-          ) : (
-            <img
-              ref={imgRef}
-              src={displaySrc}
-              alt={current.file_name}
-              className={styles.imageElement}
-              onLoad={() => centerAndFitMedia()}
-              style={{
-                transform: `rotate(${editor.rotation}deg) scaleX(${editor.flipH ? -1 : 1}) scaleY(${editor.flipV ? -1 : 1})`,
-                filter: getFilterStyle(),
-              }}
-            />
-          )}
-
-          {/* High-DPI Vector Annotation Layer for raster/svg */}
-          {!isVideo && !isAudio && (
-            <AnnotationLayer
-              mediaWidth={mediaWidth}
-              mediaHeight={mediaHeight}
-              imageElement={imgRef.current}
-              displaySrc={displaySrc}
-            />
-          )}
-
-          {/* Interactive 8-Anchor Crop Overlay for raster images */}
-          {activeSubTool === 'crop' && !isVideo && !isAudio && (
-            <CropOverlay
-              mediaWidth={mediaWidth}
-              mediaHeight={mediaHeight}
-            />
-          )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div
+          ref={canvasRef}
+          className={styles.canvasContainer}
+          style={{
+            transform: `translate3d(${pan.x}px, ${pan.y}px, 0px) scale(${zoom})`,
+          }}
+        >
+          <div style={{ position: 'relative', display: 'inline-block' }}>
+            {isVideo ? (
+              <video
+                ref={videoRef}
+                src={assetUrl}
+                className={styles.videoElement}
+                onLoadedMetadata={(e) => {
+                  const d = (e.target as HTMLVideoElement).duration;
+                  if (d > 0) setDuration(d);
+                  centerAndFitMedia();
+                }}
+                onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
+                loop
+                playsInline
+              />
+            ) : activeMode === 'edit' && editor.previewUrl ? (
+              /* Split comparison mode */
+              <div className={styles.splitContainer}>
+                <img
+                  ref={imgRef}
+                  src={imageDetail?.data_url || assetUrl}
+                  alt="Original"
+                  className={styles.splitOriginal}
+                  onLoad={() => centerAndFitMedia()}
+                />
+                <div
+                  className={styles.splitEdited}
+                  style={{ width: `${editor.splitPosition}%` }}
+                >
+                  <img
+                    src={editor.previewUrl}
+                    alt="Edited"
+                    style={{
+                      transform: `rotate(${editor.rotation}deg) scaleX(${editor.flipH ? -1 : 1}) scaleY(${editor.flipV ? -1 : 1})`,
+                      filter: getFilterStyle(),
+                    }}
+                  />
+                </div>
+                <div
+                  className={styles.splitHandle}
+                  style={{ left: `${editor.splitPosition}%` }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    setIsSplitting(true);
+                  }}
+                >
+                  <div className={styles.handleGrip}>↔</div>
+                </div>
+              </div>
+            ) : (
+              <img
+                ref={imgRef}
+                src={displaySrc}
+                alt={current.file_name}
+                className={styles.imageElement}
+                onLoad={() => centerAndFitMedia()}
+                style={{
+                  transform: `rotate(${editor.rotation}deg) scaleX(${editor.flipH ? -1 : 1}) scaleY(${editor.flipV ? -1 : 1})`,
+                  filter: getFilterStyle(),
+                }}
+              />
+            )}
+
+            {/* High-DPI Vector Annotation Layer for raster/svg */}
+            {!isVideo && (
+              <AnnotationLayer
+                mediaWidth={mediaWidth}
+                mediaHeight={mediaHeight}
+                imageElement={imgRef.current}
+                displaySrc={displaySrc}
+              />
+            )}
+
+            {/* Interactive 8-Anchor Crop Overlay for raster images */}
+            {activeSubTool === 'crop' && !isVideo && (
+              <CropOverlay
+                mediaWidth={mediaWidth}
+                mediaHeight={mediaHeight}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

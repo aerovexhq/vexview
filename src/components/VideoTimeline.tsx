@@ -74,6 +74,7 @@ export const VideoTimeline: React.FC = () => {
 
   if (!current || (current.media_type !== 'Video' && current.media_type !== 'Audio')) return null;
   const isAudio = current.media_type === 'Audio';
+  if (isAudio && activeMode === 'view') return null;
 
   const formatTime = (secs: number) => {
     if (isNaN(secs) || secs < 0) secs = 0;
@@ -347,48 +348,51 @@ export const VideoTimeline: React.FC = () => {
 
         {/* View & Tool Toggles (Right) */}
         <div className={styles.rightGroup}>
-          <button
-            className={styles.controlBtn}
-            onClick={() => setZoom(zoom * 0.8)}
-            title="Zoom Out (-)"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
+          {!isAudio && (
+            <>
+              <button
+                className={styles.controlBtn}
+                onClick={() => setZoom(zoom * 0.8)}
+                title="Zoom Out (-)"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
 
-          <div
-            className={`${styles.zoomIndicator} tabular-nums`}
-            onClick={resetView}
-            title="Click to Reset 100% (0)"
-          >
-            {(zoom * 100).toFixed(0)}%
-          </div>
+              <div
+                className={`${styles.zoomIndicator} tabular-nums`}
+                onClick={resetView}
+                title="Click to Reset 100% (0)"
+              >
+                {(zoom * 100).toFixed(0)}%
+              </div>
 
-          <button
-            className={styles.controlBtn}
-            onClick={() => setZoom(zoom * 1.25)}
-            title="Zoom In (+)"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
+              <button
+                className={styles.controlBtn}
+                onClick={() => setZoom(zoom * 1.25)}
+                title="Zoom In (+)"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
 
-          {/* Center and Fit Button */}
-          <button
-            className={styles.controlBtn}
-            onClick={centerView}
-            title="Center in Safe Viewport (0 / F)"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-              <circle cx="12" cy="12" r="2" />
-            </svg>
-          </button>
+              <button
+                className={styles.controlBtn}
+                onClick={centerView}
+                title="Center in Safe Viewport (0 / F)"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                  <circle cx="12" cy="12" r="2" />
+                </svg>
+              </button>
 
-          <div className={styles.divider} />
+              <div className={styles.divider} />
+            </>
+          )}
 
           {/* Trim Mode Toggle */}
           <button

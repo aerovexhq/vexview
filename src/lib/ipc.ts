@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 export interface MediaItem {
   path: string;
   file_name: string;
-  media_type: 'Image' | 'AnimatedImage' | 'Svg' | 'Video' | 'Unknown';
+  media_type: 'Image' | 'AnimatedImage' | 'Svg' | 'Video' | 'Audio' | 'Unknown';
   file_size: number;
   modified?: { secs_since_epoch: number; nanos_since_epoch: number };
 }
@@ -19,6 +19,17 @@ export interface ImageDetailResponse {
 }
 
 export type u32 = number;
+
+export interface AudioMetadata {
+  duration_seconds: number;
+  audio_codec?: string;
+  sample_rate?: number;
+  channels?: number;
+  bit_rate?: number;
+  title?: string;
+  artist?: string;
+  album?: string;
+}
 
 export interface VideoMetadata {
   duration_seconds: number;
@@ -117,6 +128,22 @@ export async function probeVideo(filePath: string): Promise<VideoMetadata> {
   return await invoke<VideoMetadata>('probe_video', { filePath });
 }
 
+export async function probeAudio(filePath: string): Promise<AudioMetadata> {
+  if (!isTauri) {
+    return {
+      duration_seconds: 184.2,
+      audio_codec: 'mp3',
+      sample_rate: 44100,
+      channels: 2,
+      bit_rate: 320000,
+      title: 'Acoustic Resonance',
+      artist: 'Aerovex Soundworks',
+      album: 'Edge Synthesis Vol. 1',
+    };
+  }
+  return await invoke<AudioMetadata>('probe_audio', { filePath });
+}
+
 export async function applyTransforms(req: TransformParams): Promise<string> {
   if (!isTauri) {
     return 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1600&auto=format&fit=crop&q=80';
@@ -140,6 +167,40 @@ export async function trimVideo(
     endSec,
     quality: quality || null,
     overwrite: overwrite || false,
+  });
+}
+
+export async function trimAudioClip(
+  input: string,
+  output?: string | null,
+  startSec = 0,
+  endSec = 0,
+  quality?: 'original' | 'high' | 'medium' | 'small',
+  overwrite?: boolean,
+): Promise<string> {
+  if (!isTauri) return output || input;
+  return await invoke<string>('trim_audio_clip', {
+    input,
+    output: output || null,
+    startSec,
+    endSec,
+    quality: quality || null,
+    overwrite: overwrite || false,
+  });
+}
+
+export async function convertAudioFile(
+  input: string,
+  output?: string | null,
+  format = 'mp3',
+  sampleRate?: number,
+): Promise<string> {
+  if (!isTauri) return output || input;
+  return await invoke<string>('convert_audio_file', {
+    input,
+    output: output || null,
+    format,
+    sampleRate: sampleRate || null,
   });
 }
 
@@ -241,9 +302,33 @@ export async function pickAudioFile(): Promise<string | null> {
   return await invoke<string | null>('pick_audio_file');
 }
 
+export async function pickMediaFiles(): Promise<string[]> {
+  if (!isTauri) return [];
+  return await invoke<string[]>('pick_media_files');
+}
+
 export async function composeVideoSequence(req: ComposeRequest): Promise<string> {
   if (!isTauri) return req.destination;
   return await invoke<string>('compose_video_sequence', { req });
+}
+
+export interface ComposeAudioClipInput {
+  path: string;
+  start_sec?: number;
+  end_sec?: number;
+  volume?: number;
+}
+
+export interface ComposeAudioRequest {
+  clips: ComposeAudioClipInput[];
+  destination: string;
+  format?: string;
+  bitrate?: string;
+}
+
+export async function composeAudioSequence(req: ComposeAudioRequest): Promise<string> {
+  if (!isTauri) return req.destination;
+  return await invoke<string>('compose_audio_sequence', { req });
 }
 
 export async function convertMediaFile(

@@ -7,6 +7,7 @@ pub enum ScanFilter {
     AllMedia,
     ImagesOnly,
     VideosOnly,
+    AudioOnly,
 }
 
 /// Scans a directory for supported media items and returns them sorted naturally.
@@ -31,6 +32,7 @@ pub fn scan_directory<P: AsRef<Path>>(dir: P, filter: ScanFilter) -> Vec<MediaIt
                     ScanFilter::AllMedia => true,
                     ScanFilter::ImagesOnly => item.media_type.is_image(),
                     ScanFilter::VideosOnly => item.media_type.is_video(),
+                    ScanFilter::AudioOnly => item.media_type.is_audio(),
                 };
 
                 if matches_filter {

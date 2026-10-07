@@ -11,9 +11,26 @@ pub struct VideoMetadata {
     pub audio_codec: Option<String>,
     pub frame_rate: Option<f64>,
     pub bit_rate: Option<u64>,
+    pub sample_rate: Option<u32>,
+    pub channels: Option<u32>,
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub album: Option<String>,
 }
 
-/// Probes a video file using ffprobe if available.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AudioMetadata {
+    pub duration_seconds: f64,
+    pub audio_codec: Option<String>,
+    pub sample_rate: Option<u32>,
+    pub channels: Option<u32>,
+    pub bit_rate: Option<u64>,
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+}
+
+/// Probes a video or media file using ffprobe if available.
 pub fn probe_video<P: AsRef<Path>>(path: P) -> Option<VideoMetadata> {
     let output = Command::new("ffprobe")
         .args([
@@ -42,6 +59,23 @@ pub fn probe_video<P: AsRef<Path>>(path: P) -> Option<VideoMetadata> {
         if let Some(br_str) = format.get("bit_rate").and_then(|b| b.as_str()) {
             meta.bit_rate = br_str.parse().ok();
         }
+        if let Some(tags) = format.get("tags") {
+            meta.title = tags
+                .get("title")
+                .or_else(|| tags.get("TITLE"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            meta.artist = tags
+                .get("artist")
+                .or_else(|| tags.get("ARTIST"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            meta.album = tags
+                .get("album")
+                .or_else(|| tags.get("ALBUM"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+        }
     }
 
     if let Some(streams) = json_val.get("streams").and_then(|s| s.as_array()) {
@@ -69,11 +103,37 @@ pub fn probe_video<P: AsRef<Path>>(path: P) -> Option<VideoMetadata> {
                     .get("codec_name")
                     .and_then(|c| c.as_str())
                     .map(|s| s.to_string());
+                if let Some(sr) = s.get("sample_rate").and_then(|v| v.as_str()) {
+                    meta.sample_rate = sr.parse().ok();
+                }
+                if let Some(ch) = s.get("channels").and_then(|v| v.as_u64()) {
+                    meta.channels = Some(ch as u32);
+                }
+                if meta.bit_rate.is_none() {
+                    if let Some(br) = s.get("bit_rate").and_then(|v| v.as_str()) {
+                        meta.bit_rate = br.parse().ok();
+                    }
+                }
             }
         }
     }
 
     Some(meta)
+}
+
+/// Probes an audio file using ffprobe.
+pub fn probe_audio<P: AsRef<Path>>(path: P) -> Option<AudioMetadata> {
+    let vm = probe_video(path)?;
+    Some(AudioMetadata {
+        duration_seconds: vm.duration_seconds,
+        audio_codec: vm.audio_codec,
+        sample_rate: vm.sample_rate,
+        channels: vm.channels,
+        bit_rate: vm.bit_rate,
+        title: vm.title,
+        artist: vm.artist,
+        album: vm.album,
+    })
 }
 
 #[cfg(test)]

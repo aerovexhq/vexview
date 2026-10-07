@@ -224,6 +224,13 @@ fn probe_video(file_path: String) -> Result<vex_video::VideoMetadata, String> {
 }
 
 #[tauri::command]
+fn probe_audio(file_path: String) -> Result<vex_video::AudioMetadata, String> {
+    let clean = clean_file_path(&file_path);
+    vex_video::probe_audio(&clean)
+        .ok_or_else(|| "Failed to probe audio streams with ffprobe".to_string())
+}
+
+#[tauri::command]
 fn apply_image_transforms(req: TransformRequest) -> Result<String, String> {
     let clean = clean_file_path(&req.path);
     let path_ref = Path::new(&clean);
@@ -353,6 +360,65 @@ fn trim_video_clip(
 }
 
 #[tauri::command]
+fn trim_audio_clip(
+    input: String,
+    output: Option<String>,
+    start_sec: f64,
+    end_sec: f64,
+    quality: Option<String>,
+    overwrite: Option<bool>,
+) -> Result<String, String> {
+    let clean_in = clean_file_path(&input);
+    let in_path = Path::new(&clean_in);
+
+    let is_overwrite = overwrite.unwrap_or(false);
+    let dest = if let Some(out) = output.filter(|s| !s.trim().is_empty()) {
+        clean_file_path(&out)
+    } else if is_overwrite {
+        clean_in.clone()
+    } else {
+        let candidate = get_non_colliding_path(in_path, "trimmed", None);
+        candidate.to_string_lossy().to_string()
+    };
+
+    if is_overwrite {
+        let ext = in_path.extension().and_then(|e| e.to_str()).unwrap_or("mp3");
+        let temp_dest = format!("{}.vex_tmp.{}", clean_in, ext);
+        vex_video::trim_audio(&clean_in, &temp_dest, start_sec, end_sec, quality.as_deref())
+            .map_err(|e| format!("Audio trim failed: {}", e))?;
+        std::fs::rename(&temp_dest, &clean_in)
+            .map_err(|e| format!("Failed to overwrite original audio: {}", e))?;
+        Ok(clean_in)
+    } else {
+        vex_video::trim_audio(&clean_in, &dest, start_sec, end_sec, quality.as_deref())
+            .map_err(|e| format!("Audio trim failed: {}", e))?;
+        Ok(dest)
+    }
+}
+
+#[tauri::command]
+fn convert_audio_file(
+    input: String,
+    output: Option<String>,
+    format: String,
+    sample_rate: Option<u32>,
+) -> Result<String, String> {
+    let clean_in = clean_file_path(&input);
+    let in_path = Path::new(&clean_in);
+    let ext = format.trim().to_lowercase();
+    let dest = if let Some(out) = output.filter(|s| !s.trim().is_empty()) {
+        clean_file_path(&out)
+    } else {
+        let candidate = get_non_colliding_path(in_path, "converted", Some(&ext));
+        candidate.to_string_lossy().to_string()
+    };
+
+    vex_video::convert_audio(&clean_in, &dest, &ext, None, sample_rate)
+        .map_err(|e| format!("Audio conversion failed: {}", e))?;
+    Ok(dest)
+}
+
+#[tauri::command]
 fn capture_video_snapshot(input: String, output: String, timestamp: f64) -> Result<(), String> {
     vex_video::capture_frame(&input, &output, timestamp)
         .map_err(|e| format!("Snapshot failed: {}", e))
@@ -375,10 +441,11 @@ fn export_video_to_gif(
 async fn open_file_dialog() -> Result<Option<String>, String> {
     let file = rfd::AsyncFileDialog::new()
         .add_filter(
-            "Media Files",
+            "All Media Files",
             &[
-                "png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "avif", "ico", "tiff", "mp4",
-                "mkv", "webm", "avi", "mov", "flv", "wmv",
+                "png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "avif", "ico", "tiff",
+                "mp4", "mkv", "webm", "avi", "mov", "flv", "wmv",
+                "mp3", "wav", "flac", "aac", "ogg", "oga", "m4a", "opus", "wma", "aiff", "mid", "midi",
             ],
         )
         .add_filter(
@@ -391,11 +458,55 @@ async fn open_file_dialog() -> Result<Option<String>, String> {
             "Videos",
             &["mp4", "mkv", "webm", "avi", "mov", "flv", "wmv"],
         )
+        .add_filter(
+            "Audio",
+            &[
+                "mp3", "wav", "flac", "aac", "ogg", "oga", "m4a", "opus", "wma", "aiff", "mid", "midi",
+            ],
+        )
         .set_title("Open Media File")
         .pick_file()
         .await;
 
     Ok(file.map(|f| f.path().to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+async fn pick_media_files() -> Result<Vec<String>, String> {
+    let files = rfd::AsyncFileDialog::new()
+        .add_filter(
+            "All Supported Media",
+            &[
+                "png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "avif", "ico", "tiff",
+                "mp4", "mkv", "webm", "avi", "mov", "flv", "wmv",
+                "mp3", "wav", "flac", "aac", "ogg", "oga", "m4a", "opus", "wma", "aiff", "mid", "midi",
+            ],
+        )
+        .add_filter(
+            "Audio Tracks",
+            &[
+                "mp3", "wav", "flac", "aac", "ogg", "oga", "m4a", "opus", "wma", "aiff", "mid", "midi",
+            ],
+        )
+        .add_filter(
+            "Videos",
+            &["mp4", "mkv", "webm", "avi", "mov", "flv", "wmv"],
+        )
+        .add_filter(
+            "Images",
+            &[
+                "png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "avif", "ico", "tiff",
+            ],
+        )
+        .set_title("Select Media Files to Import")
+        .pick_files()
+        .await;
+
+    Ok(files
+        .unwrap_or_default()
+        .into_iter()
+        .map(|f| f.path().to_string_lossy().to_string())
+        .collect())
 }
 
 #[tauri::command]
@@ -413,7 +524,9 @@ async fn pick_audio_file() -> Result<Option<String>, String> {
     let file = rfd::AsyncFileDialog::new()
         .add_filter(
             "Audio Files",
-            &["mp3", "wav", "aac", "m4a", "ogg", "flac", "wma"],
+            &[
+                "mp3", "wav", "aac", "m4a", "ogg", "flac", "wma", "opus", "aiff",
+            ],
         )
         .set_title("Select Background Audio / Music Track")
         .pick_file()
@@ -429,6 +542,16 @@ async fn compose_video_sequence(req: vex_video::ComposeRequest) -> Result<String
         .await
         .map_err(|e| format!("Task spawn error: {}", e))?
         .map_err(|e| format!("Composition failed: {}", e))?;
+    Ok(dest)
+}
+
+#[tauri::command]
+async fn compose_audio_sequence(req: vex_video::ComposeAudioRequest) -> Result<String, String> {
+    let dest = req.destination.clone();
+    tauri::async_runtime::spawn_blocking(move || vex_video::compose_audio_sequence(req))
+        .await
+        .map_err(|e| format!("Task spawn error: {}", e))?
+        .map_err(|e| format!("Audio composition failed: {}", e))?;
     Ok(dest)
 }
 
@@ -586,10 +709,38 @@ async fn convert_media_file(
     height: Option<u32>,
     quality: Option<u8>,
 ) -> Result<String, String> {
-    let out = output_path.clone();
+    let clean_in = clean_file_path(&input_path);
+    let clean_out = clean_file_path(&output_path);
+    let in_p = Path::new(&clean_in);
+    let out_p = Path::new(&clean_out);
+
+    let out_ext = format
+        .clone()
+        .or_else(|| out_p.extension().and_then(|e| e.to_str()).map(|s| s.to_string()))
+        .unwrap_or_else(|| "png".to_string())
+        .to_lowercase();
+
+    let in_media = vex_core::MediaType::from_path(in_p);
+    let is_audio_target = matches!(
+        out_ext.as_str(),
+        "mp3" | "wav" | "flac" | "aac" | "ogg" | "oga" | "m4a" | "opus" | "wma" | "aiff"
+    );
+
+    if in_media.is_audio() || in_media.is_video() || is_audio_target {
+        let bitrate_val = quality.map(|q| format!("{}k", (q as u32 * 320) / 100));
+        tauri::async_runtime::spawn_blocking(move || {
+            vex_video::convert_audio(&clean_in, &clean_out, &out_ext, bitrate_val.as_deref(), None)
+        })
+        .await
+        .map_err(|e| format!("Task spawn error: {}", e))?
+        .map_err(|e| format!("Audio/Video conversion failed: {}", e))?;
+        return Ok(output_path);
+    }
+
+    let out = clean_out.clone();
     let fmt = format.as_deref().and_then(ExportFormat::from_ext_or_name);
     tauri::async_runtime::spawn_blocking(move || {
-        vex_edit::convert_image_file(&input_path, &out, fmt, width, height, quality)
+        vex_edit::convert_image_file(&clean_in, &out, fmt, width, height, quality)
     })
     .await
     .map_err(|e| format!("Task spawn error: {}", e))?
@@ -951,14 +1102,19 @@ fn main() {
             load_image_detail,
             get_thumbnail_base64,
             probe_video,
+            probe_audio,
             apply_image_transforms,
             trim_video_clip,
+            trim_audio_clip,
+            convert_audio_file,
             capture_video_snapshot,
             export_video_to_gif,
             open_file_dialog,
             open_folder_dialog,
             pick_audio_file,
+            pick_media_files,
             compose_video_sequence,
+            compose_audio_sequence,
             convert_media_file,
             save_file_dialog,
             set_default_media_viewer,

@@ -3,10 +3,12 @@ import {
   MediaItem,
   ImageDetailResponse,
   VideoMetadata,
+  AudioMetadata,
   AnnotationItem,
   scanFolder,
   loadImageDetail,
   probeVideo,
+  probeAudio,
   openFileDialog,
   openFolderDialog,
   copyImageToClipboard,
@@ -88,7 +90,7 @@ export interface SequenceClip {
   duration?: number;
   trimStart?: number;
   trimEnd?: number;
-  mediaType: 'Image' | 'Video';
+  mediaType: 'Image' | 'Video' | 'Audio';
 }
 
 export interface AudioTrackConfig {
@@ -104,6 +106,7 @@ interface ViewerStore {
   currentIndex: number;
   imageDetail: ImageDetailResponse | null;
   videoDetail: VideoMetadata | null;
+  audioDetail: AudioMetadata | null;
   loading: boolean;
   error: string | null;
 
@@ -208,10 +211,14 @@ interface ViewerStore {
   addCurrentToSequence: () => void;
   removeClipFromSequence: (id: string) => void;
   moveClipInSequence: (fromIndex: number, toIndex: number) => void;
+  updateClipDuration: (id: string, duration: number) => void;
+  updateClipTrim: (id: string, trimStart: number, trimEnd: number) => void;
   clearSequence: () => void;
   setAudioTrack: (track: AudioTrackConfig | null) => void;
   updateAudioVolume: (volume: number) => void;
   setAudioMode: (mode: 'mix' | 'replace') => void;
+  newTimelineProject: (mode?: 'video' | 'audio') => void;
+  importFilesToSequence: (filePaths: string[]) => Promise<void>;
 }
 
 const initialEditorState: EditorState = {
@@ -261,6 +268,7 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
   currentIndex: 0,
   imageDetail: null,
   videoDetail: null,
+  audioDetail: null,
   loading: false,
   error: null,
 
@@ -342,8 +350,19 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
         set({
           videoDetail,
           imageDetail: null,
+          audioDetail: null,
           duration: videoDetail.duration_seconds,
           trimRange: [0, videoDetail.duration_seconds],
+          loading: false,
+        });
+      } else if (current.media_type === 'Audio') {
+        const audioDetail = await probeAudio(current.path);
+        set({
+          audioDetail,
+          videoDetail: null,
+          imageDetail: null,
+          duration: audioDetail.duration_seconds,
+          trimRange: [0, audioDetail.duration_seconds],
           loading: false,
         });
       } else {
@@ -351,6 +370,7 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
         set({
           imageDetail,
           videoDetail: null,
+          audioDetail: null,
           loading: false,
         });
       }
@@ -537,11 +557,14 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
       const fileName = cleanPath.split('/').pop() || 'media';
       const ext = fileName.split('.').pop()?.toLowerCase() || '';
       const isVid = ['mp4', 'mkv', 'webm', 'mov', 'avi', 'flv', 'wmv'].includes(ext);
+      const isAud = [
+        'mp3', 'wav', 'flac', 'aac', 'ogg', 'oga', 'm4a', 'opus', 'wma', 'aiff', 'aif', 'mid', 'midi', 'ac3', 'dts', 'alac', 'amr'
+      ].includes(ext);
       const isSvg = ext === 'svg' || ext === 'svgz';
       const initialItem: MediaItem = {
         path: cleanPath,
         file_name: fileName,
-        media_type: isVid ? 'Video' : isSvg ? 'Svg' : 'Image',
+        media_type: isVid ? 'Video' : isAud ? 'Audio' : isSvg ? 'Svg' : 'Image',
         file_size: 0,
       };
 
@@ -606,14 +629,16 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
     const current = items[currentIndex];
     if (!current) return;
     const isVid = current.media_type === 'Video';
+    const isAud = current.media_type === 'Audio';
+    const defDuration = isVid || isAud ? duration || 5.0 : 3.0;
     const newClip: SequenceClip = {
       id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       path: current.path,
       fileName: current.file_name,
-      duration: isVid ? duration : 3.0,
-      trimStart: isVid && trimRange[1] > 0 ? trimRange[0] : 0,
-      trimEnd: isVid && trimRange[1] > 0 ? trimRange[1] : (isVid ? duration : 3.0),
-      mediaType: current.media_type as 'Image' | 'Video',
+      duration: defDuration,
+      trimStart: (isVid || isAud) && trimRange[1] > 0 ? trimRange[0] : 0,
+      trimEnd: (isVid || isAud) && trimRange[1] > 0 ? trimRange[1] : defDuration,
+      mediaType: isVid ? 'Video' : isAud ? 'Audio' : 'Image',
     };
     set((s) => ({ sequence: [...s.sequence, newClip] }));
   },
@@ -630,6 +655,65 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
       nextSeq.splice(toIndex, 0, moved);
       return { sequence: nextSeq };
     }),
+
+  updateClipDuration: (id, duration) =>
+    set((s) => ({
+      sequence: s.sequence.map((c) => (c.id === id ? { ...c, duration, trimEnd: duration } : c)),
+    })),
+
+  updateClipTrim: (id, trimStart, trimEnd) =>
+    set((s) => ({
+      sequence: s.sequence.map((c) => (c.id === id ? { ...c, trimStart, trimEnd } : c)),
+    })),
+
+  newTimelineProject: (_mode?: 'video' | 'audio') => {
+    set({
+      sequence: [],
+      audioTrack: null,
+      activeMode: 'edit',
+      zoom: 1.0,
+      pan: { x: 0, y: 0 },
+    });
+  },
+
+  importFilesToSequence: async (filePaths: string[]) => {
+    const newClips: SequenceClip[] = [];
+    for (const fp of filePaths) {
+      const clean = fp.replace(/^file:\/\//, '');
+      const fileName = clean.split('/').pop() || 'media';
+      const ext = fileName.split('.').pop()?.toLowerCase() || '';
+      const isVid = ['mp4', 'mkv', 'webm', 'mov', 'avi', 'flv', 'wmv'].includes(ext);
+      const isAud = [
+        'mp3', 'wav', 'flac', 'aac', 'ogg', 'oga', 'm4a', 'opus', 'wma', 'aiff', 'aif', 'mid', 'midi', 'ac3', 'dts', 'alac', 'amr'
+      ].includes(ext);
+
+      let dur = 3.0;
+      let mType: 'Image' | 'Video' | 'Audio' = 'Image';
+      if (isVid) {
+        mType = 'Video';
+        try {
+          const meta = await probeVideo(clean);
+          dur = meta.duration_seconds || 5.0;
+        } catch {}
+      } else if (isAud) {
+        mType = 'Audio';
+        try {
+          const meta = await probeAudio(clean);
+          dur = meta.duration_seconds || 30.0;
+        } catch {}
+      }
+      newClips.push({
+        id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        path: clean,
+        fileName,
+        duration: dur,
+        trimStart: 0,
+        trimEnd: dur,
+        mediaType: mType,
+      });
+    }
+    set((s) => ({ sequence: [...s.sequence, ...newClips], activeMode: 'edit' }));
+  },
 
   clearSequence: () => set({ sequence: [] }),
 

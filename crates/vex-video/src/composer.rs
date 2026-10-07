@@ -26,11 +26,19 @@ pub struct ComposeRequest {
     pub quality: Option<String>,
 }
 
-/// Composes, rearranges, and renders a sequence of clips with optional background music.
-pub fn compose_video_sequence(req: ComposeRequest) -> Result<(), VideoProcessError> {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComposeAudioRequest {
+    pub clips: Vec<SequenceClipInput>,
+    pub destination: String,
+    pub format: Option<String>,
+    pub bitrate: Option<String>,
+}
+
+/// Composes and concatenates multiple audio clips into a single audio file.
+pub fn compose_audio_sequence(req: ComposeAudioRequest) -> Result<(), VideoProcessError> {
     if req.clips.is_empty() {
         return Err(VideoProcessError::FfmpegFailed(
-            "No clips provided in sequence".into(),
+            "No clips provided in audio sequence".into(),
         ));
     }
 
@@ -53,6 +61,124 @@ pub fn compose_video_sequence(req: ComposeRequest) -> Result<(), VideoProcessErr
             }
         }
         cmd.args(["-i", &clip.path]);
+    }
+
+    let count = req.clips.len();
+    let mut filter_complex = String::new();
+    for i in 0..count {
+        filter_complex.push_str(&format!("[{}:a]", i));
+    }
+    filter_complex.push_str(&format!("concat=n={}:v=0:a=1[a_out]", count));
+
+    cmd.args(["-filter_complex", &filter_complex]);
+    cmd.args(["-map", "[a_out]"]);
+
+    let ext = Path::new(&req.destination)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|s| s.to_lowercase())
+        .unwrap_or_else(|| "mp3".to_string());
+
+    let br = req.bitrate.as_deref().unwrap_or("256k");
+    match ext.as_str() {
+        "mp3" => cmd.args(["-c:a", "libmp3lame", "-b:a", br]),
+        "wav" => cmd.args(["-c:a", "pcm_s16le"]),
+        "flac" => cmd.args(["-c:a", "flac"]),
+        "ogg" => cmd.args(["-c:a", "libvorbis", "-b:a", br]),
+        "opus" => cmd.args(["-c:a", "libopus", "-b:a", br]),
+        "m4a" => cmd.args(["-c:a", "aac", "-b:a", br]),
+        _ => cmd.args(["-c:a", "aac", "-b:a", br]),
+    };
+
+    cmd.args(["-y"]).arg(&req.destination);
+
+    let status = cmd.status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(VideoProcessError::FfmpegFailed(
+            "Audio sequence composition render failed".into(),
+        ))
+    }
+}
+
+/// Composes, rearranges, and renders a sequence of clips with optional background music.
+pub fn compose_video_sequence(req: ComposeRequest) -> Result<(), VideoProcessError> {
+    if req.clips.is_empty() {
+        return Err(VideoProcessError::FfmpegFailed(
+            "No clips provided in sequence".into(),
+        ));
+    }
+
+    let dest_ext = Path::new(&req.destination)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|s| s.to_lowercase())
+        .unwrap_or_default();
+
+    if matches!(
+        dest_ext.as_str(),
+        "mp3" | "wav" | "flac" | "aac" | "ogg" | "opus" | "m4a" | "wma"
+    ) {
+        return compose_audio_sequence(ComposeAudioRequest {
+            clips: req.clips,
+            destination: req.destination,
+            format: Some(dest_ext),
+            bitrate: req.quality.map(|q| match q.as_str() {
+                "high" => "320k".to_string(),
+                "small" => "128k".to_string(),
+                _ => "256k".to_string(),
+            }),
+        });
+    }
+
+    if let Some(parent) = Path::new(&req.destination).parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+
+    let mut cmd = Command::new("ffmpeg");
+
+    for clip in &req.clips {
+        let ext = Path::new(&clip.path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|s| s.to_lowercase())
+            .unwrap_or_default();
+        let is_image = matches!(
+            ext.as_str(),
+            "png" | "jpg" | "jpeg" | "webp" | "avif" | "bmp" | "svg"
+        );
+
+        if is_image {
+            let dur = match (clip.start_sec, clip.end_sec) {
+                (Some(s), Some(e)) if e > s => e - s,
+                (_, Some(e)) if e > 0.0 => e,
+                _ => 3.0,
+            };
+            cmd.args([
+                "-loop",
+                "1",
+                "-t",
+                &format!("{:.3}", dur),
+                "-framerate",
+                "30",
+                "-i",
+                &clip.path,
+            ]);
+        } else {
+            if let Some(start) = clip.start_sec {
+                cmd.args(["-ss", &format!("{:.3}", start)]);
+            }
+            if let Some(end) = clip.end_sec {
+                if let Some(start) = clip.start_sec {
+                    let duration = (end - start).max(0.1);
+                    cmd.args(["-t", &format!("{:.3}", duration)]);
+                } else {
+                    cmd.args(["-to", &format!("{:.3}", end)]);
+                }
+            }
+            cmd.args(["-i", &clip.path]);
+        }
     }
 
     let clip_count = req.clips.len();

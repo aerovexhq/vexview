@@ -379,26 +379,108 @@ pub fn process_video_advanced<P: AsRef<Path>, Q: AsRef<Path>>(
     }
 }
 
-/// Extracts standalone audio track from a video file into MP3, AAC, or WAV format.
-pub fn extract_audio_track<P: AsRef<Path>, Q: AsRef<Path>>(
+/// Trims an audio file between start_sec and end_sec.
+pub fn trim_audio<P: AsRef<Path>, Q: AsRef<Path>>(
     input: P,
     output: Q,
-    format: &str,
+    start_sec: f64,
+    end_sec: f64,
+    quality: Option<&str>,
+) -> Result<(), VideoProcessError> {
+    let q = quality.unwrap_or("original").to_lowercase();
+    let mut cmd = Command::new("ffmpeg");
+    cmd.args([
+        "-ss",
+        &format!("{:.3}", start_sec),
+        "-to",
+        &format!("{:.3}", end_sec),
+        "-i",
+    ])
+    .arg(input.as_ref())
+    .arg("-vn");
+
+    match q.as_str() {
+        "high" => {
+            cmd.args(["-c:a", "libmp3lame", "-b:a", "320k", "-y"]);
+        }
+        "medium" | "balanced" => {
+            cmd.args(["-c:a", "libmp3lame", "-b:a", "192k", "-y"]);
+        }
+        "small" | "low" => {
+            cmd.args(["-c:a", "libmp3lame", "-b:a", "128k", "-y"]);
+        }
+        _ => {
+            // Stream copy / original lossless
+            cmd.args(["-c:a", "copy", "-y"]);
+        }
+    }
+
+    cmd.arg(output.as_ref());
+    let status = cmd.status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        // Fallback: if stream copy fails (e.g. format requires container remuxing), re-encode with high quality
+        let mut retry_cmd = Command::new("ffmpeg");
+        retry_cmd
+            .args([
+                "-ss",
+                &format!("{:.3}", start_sec),
+                "-to",
+                &format!("{:.3}", end_sec),
+                "-i",
+            ])
+            .arg(input.as_ref())
+            .args(["-vn", "-c:a", "aac", "-b:a", "256k", "-y"])
+            .arg(output.as_ref());
+        let retry_status = retry_cmd.status()?;
+        if retry_status.success() {
+            Ok(())
+        } else {
+            Err(VideoProcessError::FfmpegFailed("Audio trim failed".into()))
+        }
+    }
+}
+
+/// Converts audio file or extracts audio from video file to specified audio format.
+pub fn convert_audio<P: AsRef<Path>, Q: AsRef<Path>>(
+    input: P,
+    output: Q,
+    target_format: &str,
+    bitrate: Option<&str>,
+    sample_rate: Option<u32>,
 ) -> Result<(), VideoProcessError> {
     let mut cmd = Command::new("ffmpeg");
     cmd.args(["-i"]).arg(input.as_ref()).arg("-vn");
 
-    match format.to_lowercase().as_str() {
+    let br = bitrate.unwrap_or("256k");
+    let fmt = target_format.to_lowercase();
+    match fmt.as_str() {
         "mp3" => {
-            cmd.args(["-c:a", "libmp3lame", "-b:a", "320k"]);
+            cmd.args(["-c:a", "libmp3lame", "-b:a", br]);
         }
         "wav" => {
             cmd.args(["-c:a", "pcm_s16le"]);
         }
-        _ => {
-            // Default to AAC
-            cmd.args(["-c:a", "aac", "-b:a", "256k"]);
+        "flac" => {
+            cmd.args(["-c:a", "flac"]);
         }
+        "ogg" => {
+            cmd.args(["-c:a", "libvorbis", "-b:a", br]);
+        }
+        "opus" => {
+            cmd.args(["-c:a", "libopus", "-b:a", br]);
+        }
+        "m4a" => {
+            cmd.args(["-c:a", "aac", "-b:a", br]);
+        }
+        _ => {
+            cmd.args(["-c:a", "aac", "-b:a", br]);
+        }
+    }
+
+    if let Some(sr) = sample_rate {
+        cmd.args(["-ar", &sr.to_string()]);
     }
 
     cmd.args(["-y"]).arg(output.as_ref());
@@ -406,8 +488,20 @@ pub fn extract_audio_track<P: AsRef<Path>, Q: AsRef<Path>>(
     if status.success() {
         Ok(())
     } else {
-        Err(VideoProcessError::FfmpegFailed("Audio extraction failed".into()))
+        Err(VideoProcessError::FfmpegFailed(format!(
+            "Audio conversion to {} failed",
+            target_format
+        )))
     }
+}
+
+/// Extracts standalone audio track from a video file into MP3, WAV, FLAC, AAC, OGG, or OPUS format.
+pub fn extract_audio_track<P: AsRef<Path>, Q: AsRef<Path>>(
+    input: P,
+    output: Q,
+    format: &str,
+) -> Result<(), VideoProcessError> {
+    convert_audio(input, output, format, Some("320k"), None)
 }
 
 /// Extracts a burst sequence of still frames evenly spaced across the specified time window.
@@ -541,6 +635,29 @@ mod tests {
             assert_eq!(burst_files.len(), 3);
             for f in &burst_files {
                 assert!(Path::new(f).exists());
+            }
+
+            // Test audio conversion and trimming with synthetic audio
+            let synth_wav = temp_dir.join("vex_test_synth.wav");
+            let _ = Command::new("ffmpeg")
+                .args(["-f", "lavfi", "-i", "sine=frequency=440:duration=1.5", "-y"])
+                .arg(&synth_wav)
+                .status();
+
+            if synth_wav.exists() {
+                let extracted_mp3 = temp_dir.join("vex_test_audio.mp3");
+                let conv_res = convert_audio(&synth_wav, &extracted_mp3, "mp3", Some("192k"), Some(44100));
+                assert!(conv_res.is_ok(), "audio conversion should succeed: {:?}", conv_res);
+                assert!(extracted_mp3.exists());
+
+                let trimmed_mp3 = temp_dir.join("vex_test_audio_trim.mp3");
+                let trim_aud_res = trim_audio(&extracted_mp3, &trimmed_mp3, 0.2, 0.8, Some("medium"));
+                assert!(trim_aud_res.is_ok(), "audio trim should succeed: {:?}", trim_aud_res);
+                assert!(trimmed_mp3.exists());
+
+                let _ = std::fs::remove_file(synth_wav);
+                let _ = std::fs::remove_file(extracted_mp3);
+                let _ = std::fs::remove_file(trimmed_mp3);
             }
 
             // Clean up

@@ -13,11 +13,17 @@ pub enum MediaType {
     Svg,
     /// Video file (MP4, MKV, WebM, AVI, MOV, FLV, WMV)
     Video,
+    /// Audio file (MP3, WAV, FLAC, AAC, OGG, M4A, OPUS, WMA, AIFF, MIDI)
+    Audio,
     /// Unsupported or unknown media format
     Unknown,
 }
 
 impl MediaType {
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Self {
+        detect_media_type(path.as_ref())
+    }
+
     pub fn is_image(&self) -> bool {
         matches!(
             self,
@@ -27,6 +33,10 @@ impl MediaType {
 
     pub fn is_video(&self) -> bool {
         matches!(self, MediaType::Video)
+    }
+
+    pub fn is_audio(&self) -> bool {
+        matches!(self, MediaType::Audio)
     }
 }
 
@@ -91,6 +101,10 @@ pub fn detect_media_type<P: AsRef<Path>>(path: P) -> MediaType {
             "mp4" | "m4v" | "mkv" | "webm" | "avi" | "mov" | "flv" | "wmv" | "ogv" | "ts" => {
                 return MediaType::Video;
             }
+            "mp3" | "wav" | "flac" | "aac" | "ogg" | "oga" | "m4a" | "opus" | "wma" | "aiff"
+            | "aif" | "mid" | "midi" | "ac3" | "dts" | "alac" | "amr" => {
+                return MediaType::Audio;
+            }
             _ => {}
         }
     }
@@ -111,6 +125,8 @@ pub fn detect_media_type<P: AsRef<Path>>(path: P) -> MediaType {
             return MediaType::Image;
         } else if type_str == "video" {
             return MediaType::Video;
+        } else if type_str == "audio" {
+            return MediaType::Audio;
         }
     }
 
@@ -129,6 +145,13 @@ mod tests {
         assert_eq!(detect_media_type("sample.gif"), MediaType::AnimatedImage);
         assert_eq!(detect_media_type("sample.mp4"), MediaType::Video);
         assert_eq!(detect_media_type("sample.mkv"), MediaType::Video);
+        assert_eq!(detect_media_type("song.mp3"), MediaType::Audio);
+        assert_eq!(detect_media_type("track.wav"), MediaType::Audio);
+        assert_eq!(detect_media_type("album.flac"), MediaType::Audio);
+        assert_eq!(detect_media_type("audio.aac"), MediaType::Audio);
+        assert_eq!(detect_media_type("podcast.ogg"), MediaType::Audio);
+        assert_eq!(detect_media_type("voice.opus"), MediaType::Audio);
+        assert_eq!(detect_media_type("music.m4a"), MediaType::Audio);
         assert_eq!(detect_media_type("unknown.xyz"), MediaType::Unknown);
     }
 }

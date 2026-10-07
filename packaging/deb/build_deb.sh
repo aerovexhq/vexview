@@ -89,10 +89,10 @@ Architecture: ${ARCH}
 Depends: libwebkit2gtk-4.1-0 | libwebkit2gtk-4.0-37, libgtk-3-0
 Recommends: ffmpeg
 Maintainer: aerovexhq <https://github.com/aerovexhq>
-Description: Modern and minimalistic image and video viewer and editor app for Linux
+Description: Modern and minimalistic image, video and audio viewer and editor app for Linux
  An industrial-grade, distraction-free media viewer built with Rust and Tauri.
- Supports JPEG, PNG, WebP, AVIF, SVG, GIF, MP4, MKV, WebM, lossless trimming,
- and non-destructive image adjustments.
+ Supports JPEG, PNG, WebP, AVIF, SVG, GIF, MP4, MKV, WebM, MP3, WAV, FLAC, AAC,
+ OGG, OPUS, M4A, lossless audio/video trimming, and format conversion.
 EOF
 
 # Post-installation script (MIME database, icon cache, and default application association)
@@ -117,7 +117,7 @@ if [ "$1" = "configure" ]; then
     fi
 
     # Primary media MIME types handled by vexview
-    MIMES="image/png image/jpeg image/webp image/svg+xml image/gif image/bmp image/avif image/tiff video/mp4 video/x-matroska video/webm video/quicktime video/x-msvideo"
+    MIMES="image/png image/jpeg image/webp image/svg+xml image/gif image/bmp image/avif image/tiff video/mp4 video/x-matroska video/webm video/quicktime video/x-msvideo audio/mpeg audio/x-wav audio/wav audio/flac audio/aac audio/ogg audio/mp4 audio/opus audio/x-ms-wma audio/x-aiff audio/midi"
 
     # 1. System-wide default in /etc/xdg/mimeapps.list
     mkdir -p /etc/xdg

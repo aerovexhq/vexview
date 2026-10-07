@@ -178,6 +178,31 @@ export const FileTypeBadge: React.FC = () => {
             </svg>
           ),
         };
+      case 'mp3':
+      case 'wav':
+      case 'flac':
+      case 'aac':
+      case 'ogg':
+      case 'oga':
+      case 'm4a':
+      case 'opus':
+      case 'wma':
+      case 'aiff':
+      case 'aif':
+      case 'mid':
+      case 'midi':
+        return {
+          name: fileExt.toUpperCase(),
+          accent: '#a855f7',
+          glow: 'rgba(168, 85, 247, 0.18)',
+          icon: (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a855f7" strokeWidth="2.2">
+              <path d="M9 18V5l12-2v13" />
+              <circle cx="6" cy="18" r="3" fill="#a855f7" />
+              <circle cx="18" cy="16" r="3" fill="#a855f7" />
+            </svg>
+          ),
+        };
       default:
         return {
           name: fileExt ? fileExt.toUpperCase() : 'FILE',

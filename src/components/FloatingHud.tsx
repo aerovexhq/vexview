@@ -19,6 +19,7 @@ export const FloatingHud: React.FC = () => {
   } = useViewerStore();
 
   const [visible, setVisible] = useState(true);
+  const current = items[currentIndex];
 
   // Auto-hide timer on mouse idle
   useEffect(() => {
@@ -43,9 +44,8 @@ export const FloatingHud: React.FC = () => {
     };
   }, [activeMode]);
 
-  const current = items[currentIndex];
-  // Videos have their own unified control deck (VideoTimeline) to prevent overlapping
-  if (!current || current.media_type === 'Video') return null;
+  // Videos and Audio have their own unified control deck (VideoTimeline) to prevent overlapping
+  if (!current || current.media_type === 'Video' || current.media_type === 'Audio') return null;
 
   return (
     <div className={`${styles.hudWrapper} ${visible ? '' : styles.hidden}`}>

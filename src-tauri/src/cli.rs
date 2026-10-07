@@ -238,6 +238,39 @@ pub fn execute_info(target_path: &str) -> Result<(), String> {
                 println!("Notice:       ffprobe not found or format probe failed.");
             }
         }
+        vex_core::MediaType::Audio => {
+            println!("Type:         Audio File");
+            if let Some(audio_meta) = vex_video::probe_audio(path) {
+                let duration_formatted = format_duration(audio_meta.duration_seconds);
+                println!(
+                    "Duration:     {} ({:.2}s)",
+                    duration_formatted, audio_meta.duration_seconds
+                );
+                if let Some(codec) = audio_meta.audio_codec {
+                    println!("Audio Codec:  {}", codec);
+                }
+                if let Some(rate) = audio_meta.sample_rate {
+                    println!("Sample Rate:  {} Hz", rate);
+                }
+                if let Some(ch) = audio_meta.channels {
+                    println!("Channels:     {}", ch);
+                }
+                if let Some(br) = audio_meta.bit_rate {
+                    println!("Bitrate:      {} kb/s", br / 1000);
+                }
+                if let Some(title) = audio_meta.title {
+                    println!("Track Title:  {}", title);
+                }
+                if let Some(artist) = audio_meta.artist {
+                    println!("Artist:       {}", artist);
+                }
+                if let Some(album) = audio_meta.album {
+                    println!("Album:        {}", album);
+                }
+            } else {
+                println!("Notice:       ffprobe not found or audio probe failed.");
+            }
+        }
         vex_core::MediaType::Svg => {
             println!("Type:         Scalable Vector Graphics (SVG)");
         }
@@ -301,15 +334,27 @@ pub fn execute_convert(
     }
 
     let out_ref = Path::new(output_path);
-    let target_format = vex_edit::ExportFormat::from_ext_or_name(
-        out_ref
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("png"),
+    let out_ext = out_ref
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("png")
+        .to_lowercase();
+
+    let in_media = vex_core::MediaType::from_path(in_ref);
+    let is_audio_target = matches!(
+        out_ext.as_str(),
+        "mp3" | "wav" | "flac" | "aac" | "ogg" | "oga" | "m4a" | "opus" | "wma" | "aiff"
     );
 
-    vex_edit::convert_image_file(in_ref, out_ref, target_format, width, height, quality)
-        .map_err(|e| format!("Conversion failed: {}", e))?;
+    if in_media.is_audio() || in_media.is_video() || is_audio_target {
+        let bitrate_val = quality.map(|q| format!("{}k", (q as u32 * 320) / 100));
+        vex_video::convert_audio(in_ref, out_ref, &out_ext, bitrate_val.as_deref(), None)
+            .map_err(|e| format!("Audio/Video conversion failed: {}", e))?;
+    } else {
+        let target_format = vex_edit::ExportFormat::from_ext_or_name(&out_ext);
+        vex_edit::convert_image_file(in_ref, out_ref, target_format, width, height, quality)
+            .map_err(|e| format!("Conversion failed: {}", e))?;
+    }
 
     let in_size = in_ref.metadata().map(|m| m.len()).unwrap_or(0);
     let out_size = out_ref.metadata().map(|m| m.len()).unwrap_or(0);

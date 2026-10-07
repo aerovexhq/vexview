@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useViewerStore } from '../stores/useViewerStore';
-import { trimVideo, exportGif } from '../lib/ipc';
+import { trimVideo, trimAudioClip, exportGif } from '../lib/ipc';
 import { Select, SelectOption } from './ui/Select';
 import styles from './VideoTimeline.module.css';
 
@@ -72,7 +72,8 @@ export const VideoTimeline: React.FC = () => {
     };
   }, [activeMode, isPlaying]);
 
-  if (!current || current.media_type !== 'Video') return null;
+  if (!current || (current.media_type !== 'Video' && current.media_type !== 'Audio')) return null;
+  const isAudio = current.media_type === 'Audio';
 
   const formatTime = (secs: number) => {
     if (isNaN(secs) || secs < 0) secs = 0;
@@ -141,22 +142,32 @@ export const VideoTimeline: React.FC = () => {
     }
   };
 
-  const handleTrimVideo = async () => {
+  const handleTrimMedia = async () => {
     const [start, end] = trimRange;
     setIsTrimming(true);
     try {
-      const saved = await trimVideo(
-        current.path,
-        null,
-        start,
-        end,
-        trimQuality,
-        trimOverwrite,
-      );
+      const saved = isAudio
+        ? await trimAudioClip(
+            current.path,
+            null,
+            start,
+            end,
+            trimQuality,
+            trimOverwrite,
+          )
+        : await trimVideo(
+            current.path,
+            null,
+            start,
+            end,
+            trimQuality,
+            trimOverwrite,
+          );
+      const label = isAudio ? 'audio' : 'video';
       if (trimOverwrite) {
-        alert(`Successfully overwritten original video:\n${saved}`);
+        alert(`Successfully overwritten original ${label}:\n${saved}`);
       } else {
-        alert(`Trimmed video saved next to original:\n${saved}`);
+        alert(`Trimmed ${label} saved next to original:\n${saved}`);
       }
     } catch (e) {
       alert(`Trim error: ${e}`);
@@ -311,14 +322,16 @@ export const VideoTimeline: React.FC = () => {
             >
               + Clip
             </button>
-            <button className={styles.gifBtn} onClick={handleGifExport} title="Export selected clip as GIF">
-              GIF
-            </button>
+            {!isAudio && (
+              <button className={styles.gifBtn} onClick={handleGifExport} title="Export selected clip as GIF">
+                GIF
+              </button>
+            )}
             <button
               className={`${styles.trimBtn} ${trimOverwrite ? styles.overwrite : ''}`}
-              onClick={handleTrimVideo}
+              onClick={handleTrimMedia}
               disabled={isTrimming}
-              title={trimOverwrite ? 'Overwrites original video' : 'Cuts and saves a copy next to original'}
+              title={trimOverwrite ? `Overwrites original ${isAudio ? 'audio' : 'video'}` : `Cuts and saves a copy next to original ${isAudio ? 'audio' : 'video'}`}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <circle cx="6" cy="6" r="3" />

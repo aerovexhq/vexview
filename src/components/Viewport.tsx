@@ -60,6 +60,10 @@ export const Viewport: React.FC = () => {
     currentIndex,
     imageDetail,
     videoDetail,
+    audioDetail,
+    sequence,
+    addCurrentToSequence,
+    newTimelineProject,
     loading,
     error,
     zoom,
@@ -68,9 +72,11 @@ export const Viewport: React.FC = () => {
     setZoomAndPan,
     setCenterViewAction,
     activeMode,
+    setActiveMode,
     editor,
     updateEditor,
     isPlaying,
+    setIsPlaying,
     setCurrentTime,
     setDuration,
     seekTime,
@@ -87,6 +93,7 @@ export const Viewport: React.FC = () => {
   const viewportRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
   const panRef = useRef(pan);
@@ -100,6 +107,7 @@ export const Viewport: React.FC = () => {
 
   const current = items[currentIndex];
   const isVideo = current?.media_type === 'Video';
+  const isAudio = current?.media_type === 'Audio';
 
   // Synchronize internal refs with store coordinates
   useEffect(() => {
@@ -198,12 +206,19 @@ export const Viewport: React.FC = () => {
     const el = viewportRef.current;
     if (!el || !current) return;
 
-    const mw = isVideo
+    const isVid = current.media_type === 'Video';
+    const isAud = current.media_type === 'Audio';
+
+    const mw = isVid
       ? (videoDetail?.width || videoRef.current?.videoWidth || 1920)
+      : isAud
+      ? 520
       : (imageDetail?.width || imgRef.current?.naturalWidth || 1920);
 
-    const mh = isVideo
+    const mh = isVid
       ? (videoDetail?.height || videoRef.current?.videoHeight || 1080)
+      : isAud
+      ? 380
       : (imageDetail?.height || imgRef.current?.naturalHeight || 1080);
 
     if (mw <= 0 || mh <= 0) return;
@@ -508,24 +523,68 @@ export const Viewport: React.FC = () => {
     }
   };
 
-  // Synchronize HTML5 video element with isPlaying state
+  // Synchronize HTML5 video/audio elements with isPlaying state
   useEffect(() => {
-    if (!videoRef.current) return;
+    const mediaEl = videoRef.current || audioRef.current;
+    if (!mediaEl) return;
     if (isPlaying) {
-      videoRef.current.play().catch(() => {});
+      mediaEl.play().catch(() => {});
     } else {
-      videoRef.current.pause();
+      mediaEl.pause();
     }
   }, [isPlaying]);
 
   // Handle seeking from timeline
   useEffect(() => {
-    if (seekTime !== null && videoRef.current) {
-      videoRef.current.currentTime = seekTime;
+    if (seekTime !== null) {
+      if (videoRef.current) videoRef.current.currentTime = seekTime;
+      if (audioRef.current) audioRef.current.currentTime = seekTime;
     }
   }, [seekTime]);
 
   if (!current) {
+    if (sequence.length > 0) {
+      return (
+        <div ref={viewportRef} className={styles.viewport}>
+          <div className={styles.emptyState} style={{ maxWidth: 440 }}>
+            <svg
+              className={styles.emptyIcon}
+              width="48"
+              height="48"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#a855f7"
+              strokeWidth="1.5"
+            >
+              <rect x="2" y="4" width="20" height="16" rx="2" />
+              <path d="M7 4v16M17 4v16M2 12h20M2 8h5M2 16h5M17 8h5M17 16h5" />
+            </svg>
+            <div className={styles.emptyTitle}>Composition Storyboard Active</div>
+            <div className={styles.emptySubtitle}>
+              {sequence.length} media clip{sequence.length === 1 ? '' : 's'} staged in timeline storyboard.
+              Rearrange, trim, and render directly in the Studio Drawer.
+            </div>
+            <div className={styles.buttonGroup}>
+              <button
+                className={styles.primaryBtn}
+                onClick={() => setActiveMode('edit')}
+                title="Open Studio Sequencer Drawer"
+              >
+                Open Sequence Studio
+              </button>
+              <button
+                className={styles.secondaryBtn}
+                onClick={openMediaFile}
+                title="Open another media file"
+              >
+                Browse Media...
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div ref={viewportRef} className={styles.viewport}>
         <div className={styles.emptyState}>
@@ -544,7 +603,7 @@ export const Viewport: React.FC = () => {
           </svg>
           <div className={styles.emptyTitle}>No media loaded</div>
           <div className={styles.emptySubtitle}>
-            Select an image or video to preview and edit
+            Select an image, video, or audio track to preview, or create a new composition
           </div>
           <div className={styles.buttonGroup}>
             <button
@@ -584,6 +643,17 @@ export const Viewport: React.FC = () => {
               </svg>
               Open Folder...
             </button>
+            <button
+              className={styles.secondaryBtn}
+              onClick={() => newTimelineProject('video')}
+              title="Create a new composition project from scratch"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              New Project
+            </button>
           </div>
         </div>
       </div>
@@ -597,10 +667,14 @@ export const Viewport: React.FC = () => {
 
   const mediaWidth = isVideo
     ? (videoDetail?.width || 1920)
+    : isAudio
+    ? 520
     : (imageDetail?.width || imgRef.current?.naturalWidth || 1920);
 
   const mediaHeight = isVideo
     ? (videoDetail?.height || 1080)
+    : isAudio
+    ? 380
     : (imageDetail?.height || imgRef.current?.naturalHeight || 1080);
 
   const getFilterStyle = () => {
@@ -632,11 +706,11 @@ export const Viewport: React.FC = () => {
       onContextMenu={(e) => e.preventDefault()}
       onAuxClick={(e) => e.preventDefault()}
     >
-      {/* Floating Studio Tool Palette: only visible in edit mode */}
-      {activeMode === 'edit' && !isVideo && <ToolPalette />}
+      {/* Floating Studio Tool Palette: only visible in edit mode for raster/svg */}
+      {activeMode === 'edit' && !isVideo && !isAudio && <ToolPalette />}
 
       {/* Fixed Capsule Crop Action Bar: only visible when crop tool is active */}
-      {activeSubTool === 'crop' && <CropControlBar />}
+      {activeSubTool === 'crop' && !isVideo && !isAudio && <CropControlBar />}
 
       {/* Copy to Clipboard Notification Toast */}
       {copyNotice && (
@@ -681,6 +755,132 @@ export const Viewport: React.FC = () => {
               loop
               playsInline
             />
+          ) : isAudio ? (
+            <div className={styles.audioStudioContainer}>
+              <audio
+                ref={audioRef}
+                src={assetUrl}
+                onLoadedMetadata={(e) => {
+                  const d = (e.target as HTMLAudioElement).duration;
+                  if (d > 0) setDuration(d);
+                  centerAndFitMedia();
+                }}
+                onTimeUpdate={(e) => setCurrentTime((e.target as HTMLAudioElement).currentTime)}
+                onEnded={() => setIsPlaying(false)}
+              />
+
+              <div className={styles.audioStudioCard}>
+                {/* Center Vinyl / Acoustic Pulse Disc */}
+                <div className={`${styles.soundwaveDisc} ${isPlaying ? styles.discSpinning : ''}`}>
+                  <div className={styles.discGrooves}>
+                    <div className={styles.discInner}>
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#a855f7" strokeWidth="2.2">
+                        <path d="M9 18V5l12-2v13" />
+                        <circle cx="6" cy="18" r="3" fill="#a855f7" />
+                        <circle cx="18" cy="16" r="3" fill="#a855f7" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Animated Spectrum Waveform Bars */}
+                <div className={styles.equalizerBars}>
+                  {Array.from({ length: 24 }).map((_, i) => (
+                    <span
+                      key={i}
+                      className={`${styles.eqBar} ${isPlaying ? styles.eqBarActive : ''}`}
+                      style={{
+                        animationDelay: `${(i * 0.08) % 1.2}s`,
+                        height: isPlaying ? `${16 + (Math.sin(i * 1.3) * 14 + 14)}px` : '6px',
+                      }}
+                    />
+                  ))}
+                </div>
+
+                {/* Track Metadata Header */}
+                <div className={styles.audioMetaHeader}>
+                  <h2 className={styles.audioTrackTitle}>
+                    {audioDetail?.title || current.file_name.replace(/\.[^/.]+$/, '')}
+                  </h2>
+                  <p className={styles.audioTrackArtist}>
+                    {audioDetail?.artist
+                      ? `${audioDetail.artist} — ${audioDetail.album || 'Single'}`
+                      : current.file_name}
+                  </p>
+                </div>
+
+                {/* Technical Specs Tags */}
+                <div className={styles.audioBadgesRow}>
+                  <span className={styles.audioSpecBadge}>
+                    {audioDetail?.audio_codec
+                      ? audioDetail.audio_codec.toUpperCase()
+                      : (current.file_name.split('.').pop()?.toUpperCase() || 'AUDIO')}
+                  </span>
+                  {audioDetail?.sample_rate && (
+                    <span className={styles.audioSpecBadge}>{audioDetail.sample_rate} Hz</span>
+                  )}
+                  {audioDetail?.channels && (
+                    <span className={styles.audioSpecBadge}>
+                      {audioDetail.channels === 1
+                        ? 'Mono'
+                        : audioDetail.channels === 2
+                        ? 'Stereo'
+                        : `${audioDetail.channels} Ch`}
+                    </span>
+                  )}
+                  {audioDetail?.bit_rate && (
+                    <span className={styles.audioSpecBadge}>
+                      {Math.round(audioDetail.bit_rate / 1000)} kbps
+                    </span>
+                  )}
+                </div>
+
+                {/* Quick Action Buttons */}
+                <div className={styles.audioQuickActions}>
+                  <button
+                    className={styles.audioActionBtn}
+                    onClick={() => {
+                      setActiveMode(activeMode === 'trim' ? 'view' : 'trim');
+                    }}
+                    title="Trim & Cut Audio Track"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="6" cy="6" r="3" />
+                      <circle cx="6" cy="18" r="3" />
+                      <line x1="20" y1="4" x2="8.12" y2="15.88" />
+                      <line x1="14.47" y1="14.48" x2="20" y2="20" />
+                      <line x1="8.12" y1="8.12" x2="12" y2="12" />
+                    </svg>
+                    {activeMode === 'trim' ? 'Close Trimmer' : 'Trim Audio'}
+                  </button>
+
+                  <button
+                    className={styles.audioActionBtn}
+                    onClick={() => {
+                      setActiveMode('edit');
+                    }}
+                    title="Open Studio Drawer for Format Conversion"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                    </svg>
+                    Convert / Studio
+                  </button>
+
+                  <button
+                    className={styles.audioActionBtn}
+                    onClick={addCurrentToSequence}
+                    title="Add track to Multi-Track Sequence Storyboard"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    + Storyboard
+                  </button>
+                </div>
+              </div>
+            </div>
           ) : activeMode === 'edit' && editor.previewUrl ? (
             /* Split comparison mode */
             <div className={styles.splitContainer}>
@@ -729,16 +929,18 @@ export const Viewport: React.FC = () => {
             />
           )}
 
-          {/* High-DPI Vector Annotation Layer */}
-          <AnnotationLayer
-            mediaWidth={mediaWidth}
-            mediaHeight={mediaHeight}
-            imageElement={imgRef.current}
-            displaySrc={displaySrc}
-          />
+          {/* High-DPI Vector Annotation Layer for raster/svg */}
+          {!isVideo && !isAudio && (
+            <AnnotationLayer
+              mediaWidth={mediaWidth}
+              mediaHeight={mediaHeight}
+              imageElement={imgRef.current}
+              displaySrc={displaySrc}
+            />
+          )}
 
-          {/* Interactive 8-Anchor Crop Overlay */}
-          {activeSubTool === 'crop' && (
+          {/* Interactive 8-Anchor Crop Overlay for raster images */}
+          {activeSubTool === 'crop' && !isVideo && !isAudio && (
             <CropOverlay
               mediaWidth={mediaWidth}
               mediaHeight={mediaHeight}

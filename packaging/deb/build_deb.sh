@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-VERSION="0.1.0"
+VERSION="${1:-0.1.0}"
 PACKAGE_NAME="vexview"
 ARCH="amd64"
 OUTPUT_DIR="target/debian"

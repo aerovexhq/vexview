@@ -1,0 +1,125 @@
+name: Release Vexview
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+*"
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version tag (e.g. 0.1.0)"
+        required: true
+        default: "0.1.0"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-vexview-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    name: Build & Package Vexview Linux Release Assets
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Determine Packaging Version
+        id: ver
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            V="${{ inputs.version }}"
+          elif [[ "${GITHUB_REF_NAME}" =~ ^[0-9] ]]; then
+            V="${GITHUB_REF_NAME}"
+          elif [[ "${GITHUB_REF_NAME}" =~ ^v[0-9] ]]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            V="0.1.0"
+          fi
+          echo "version=${V}" >> $GITHUB_OUTPUT
+          echo "VERSION=${V}" >> $GITHUB_ENV
+
+      - name: Install Linux Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libfuse2t64
+
+      - name: Install Rust Stable Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Compile Vexview Release Binary
+        run: |
+          cargo build --release -p vex-gui
+          strip target/release/vexview || true
+
+      - name: Assemble Debian Package and Portable Tarball
+        run: |
+          mkdir -p dist
+
+          # Build Debian package
+          bash packaging/deb/build_deb.sh "${VERSION}"
+          cp "target/debian/vexview_${VERSION}_amd64.deb" dist/
+
+          # Standalone binary
+          cp target/release/vexview dist/vexview
+          chmod +x dist/vexview
+
+          # Portable Tarball
+          TARBALL="vexview-linux-x86_64.tar.gz"
+          TAR_DIR="target/tarball_staging"
+          rm -rf "${TAR_DIR}"
+          mkdir -p "${TAR_DIR}/icons"
+
+          cp target/release/vexview "${TAR_DIR}/vexview"
+          chmod +x "${TAR_DIR}/vexview"
+          cp install.sh "${TAR_DIR}/install.sh"
+          chmod +x "${TAR_DIR}/install.sh"
+          cp packaging/vexview.desktop "${TAR_DIR}/vexview.desktop"
+          cp README.md LICENSE "${TAR_DIR}/" 2>/dev/null || true
+          if [ -f src-tauri/icons/128x128.png ]; then
+            cp src-tauri/icons/128x128.png "${TAR_DIR}/icons/"
+          fi
+          if [ -f src-tauri/icons/32x32.png ]; then
+            cp src-tauri/icons/32x32.png "${TAR_DIR}/icons/"
+          fi
+
+          tar -czf "dist/${TARBALL}" -C "${TAR_DIR}" .
+          cp "dist/${TARBALL}" "dist/vexview-v${VERSION}-linux-x86_64.tar.gz"
+
+          # Compute SHA256 Checksums
+          cd dist
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+          cd ..
+
+      - name: Publish Official Tagged Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "vexview ${{ env.VERSION }}: Modern and Minimalistic Linux Media Viewer and Editor"
+          draft: false
+          prerelease: false
+          make_latest: true
+          generate_release_notes: false
+          files: |
+            dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

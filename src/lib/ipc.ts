@@ -29,6 +29,7 @@ export interface AudioMetadata {
   title?: string;
   artist?: string;
   album?: string;
+  file_size?: number;
 }
 
 export interface VideoMetadata {
@@ -142,6 +143,35 @@ export async function probeAudio(filePath: string): Promise<AudioMetadata> {
     };
   }
   return await invoke<AudioMetadata>('probe_audio', { filePath });
+}
+
+export interface AudioDataResponse {
+  data_base64: string;
+  mime_type: string;
+  file_size: number;
+  duration_seconds: number;
+  sample_rate?: number;
+  channels?: number;
+  audio_codec?: string;
+  title?: string;
+  artist?: string;
+}
+
+export async function readAudioFile(filePath: string): Promise<AudioDataResponse> {
+  if (!isTauri) {
+    return {
+      data_base64: '',
+      mime_type: 'audio/wav',
+      file_size: 44000,
+      duration_seconds: 5.0,
+      sample_rate: 44100,
+      channels: 2,
+      audio_codec: 'pcm_s16le',
+      title: 'Demo Audio',
+      artist: 'Aerovex',
+    };
+  }
+  return await invoke<AudioDataResponse>('read_audio_file', { filePath });
 }
 
 export async function applyTransforms(req: TransformParams): Promise<string> {

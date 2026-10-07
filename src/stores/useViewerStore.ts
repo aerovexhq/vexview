@@ -13,6 +13,7 @@ import {
   openFolderDialog,
   copyImageToClipboard,
 } from '../lib/ipc';
+import { audioEngine } from '../lib/audioEngine';
 
 export type ActiveSubTool =
   | 'select'
@@ -154,7 +155,7 @@ interface ViewerStore {
 
   // Actions
   loadFolder: (path: string) => Promise<void>;
-  selectIndex: (index: number) => Promise<void>;
+  selectIndex: (index: number, autoPlay?: boolean) => Promise<void>;
   nextItem: () => Promise<void>;
   prevItem: () => Promise<void>;
   setZoom: (zoom: number) => void;
@@ -177,7 +178,7 @@ interface ViewerStore {
   updateEditor: (partial: Partial<EditorState>) => void;
   resetEditor: () => void;
   openMediaFile: () => Promise<void>;
-  openTargetFile: (filePath: string) => Promise<void>;
+  openTargetFile: (filePath: string, autoPlay?: boolean) => Promise<void>;
   openMediaFolder: () => Promise<void>;
   copyNotice: boolean;
   copyCurrentToClipboard: () => Promise<void>;
@@ -321,9 +322,12 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
     }
   },
 
-  selectIndex: async (index: number) => {
+  selectIndex: async (index: number, autoPlay: boolean = false) => {
     const { items } = get();
     if (index < 0 || index >= items.length) return;
+
+    // Stop any existing audio playback before switching
+    audioEngine.stopPlayback();
 
     const current = items[index];
     set({
@@ -354,15 +358,26 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
           duration: videoDetail.duration_seconds,
           trimRange: [0, videoDetail.duration_seconds],
           loading: false,
+          isPlaying: autoPlay,
         });
       } else if (current.media_type === 'Audio') {
-        const audioDetail = await probeAudio(current.path);
+        const audioRes = await audioEngine.loadFile(current.path, autoPlay);
+        const durationSecs = audioEngine.getDuration() || audioRes.duration_seconds;
+        const audioDetail: AudioMetadata = {
+          duration_seconds: durationSecs,
+          sample_rate: audioRes.sample_rate,
+          channels: audioRes.channels,
+          audio_codec: audioRes.audio_codec,
+          title: audioRes.title,
+          artist: audioRes.artist,
+          file_size: audioRes.file_size,
+        };
         set({
           audioDetail,
           videoDetail: null,
           imageDetail: null,
-          duration: audioDetail.duration_seconds,
-          trimRange: [0, audioDetail.duration_seconds],
+          duration: durationSecs,
+          trimRange: [0, durationSecs],
           loading: false,
         });
       } else {
@@ -380,17 +395,17 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
   },
 
   nextItem: async () => {
-    const { items, currentIndex } = get();
+    const { items, currentIndex, isPlaying } = get();
     if (items.length === 0) return;
     const next = (currentIndex + 1) % items.length;
-    await get().selectIndex(next);
+    await get().selectIndex(next, isPlaying);
   },
 
   prevItem: async () => {
-    const { items, currentIndex } = get();
+    const { items, currentIndex, isPlaying } = get();
     if (items.length === 0) return;
     const prev = (currentIndex - 1 + items.length) % items.length;
-    await get().selectIndex(prev);
+    await get().selectIndex(prev, isPlaying);
   },
 
   setZoom: (zoom) => set({ zoom: Math.max(0.1, Math.min(zoom, 32.0)) }),
@@ -421,10 +436,28 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
   setSlideshow: (isSlideshowActive) => set({ isSlideshowActive }),
   toggleSlideshow: () => set((s) => ({ isSlideshowActive: !s.isSlideshowActive })),
 
-  setIsPlaying: (isPlaying) => set({ isPlaying }),
+  setIsPlaying: (isPlaying) => {
+    const { items, currentIndex } = get();
+    const current = items[currentIndex];
+    if (current?.media_type === 'Audio') {
+      if (isPlaying) {
+        audioEngine.play().catch(() => {});
+      } else {
+        audioEngine.pause();
+      }
+    }
+    set({ isPlaying });
+  },
   setCurrentTime: (currentTime) => set({ currentTime }),
   setDuration: (duration) => set({ duration }),
-  seekTo: (seekTime) => set({ seekTime, currentTime: seekTime }),
+  seekTo: (seekTime) => {
+    const { items, currentIndex } = get();
+    const current = items[currentIndex];
+    if (current?.media_type === 'Audio') {
+      audioEngine.seek(seekTime);
+    }
+    set({ seekTime, currentTime: seekTime });
+  },
   setTrimRange: (trimRange) => set({ trimRange }),
 
   updateEditor: (partial) =>
@@ -550,7 +583,7 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
     set((s) => ({ videoParams: { ...s.videoParams, ...partial } })),
   resetVideoParams: () => set({ videoParams: initialVideoParams }),
 
-  openTargetFile: async (filePath: string) => {
+  openTargetFile: async (filePath: string, autoPlay: boolean = true) => {
     try {
       const cleanPath = filePath.replace(/^file:\/\//, '');
       const parentDir = cleanPath.substring(0, cleanPath.lastIndexOf('/')) || '.';
@@ -577,7 +610,7 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
         error: null,
       });
 
-      const selectPromise = get().selectIndex(0);
+      const selectPromise = get().selectIndex(0, autoPlay);
 
       // Asynchronously scan parent directory in the background to populate filmstrip and next/prev list
       scanFolder(parentDir)
@@ -608,7 +641,7 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
     try {
       const selectedPath = await openFileDialog();
       if (!selectedPath) return;
-      await get().openTargetFile(selectedPath);
+      await get().openTargetFile(selectedPath, true);
     } catch (e) {
       set({ error: String(e), loading: false });
     }

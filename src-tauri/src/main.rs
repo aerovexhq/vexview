@@ -223,11 +223,124 @@ fn probe_video(file_path: String) -> Result<vex_video::VideoMetadata, String> {
         .ok_or_else(|| "Failed to probe video streams with ffprobe".to_string())
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct AudioDataResponse {
+    pub data_base64: String,
+    pub mime_type: String,
+    pub file_size: u64,
+    pub duration_seconds: f64,
+    pub sample_rate: Option<u32>,
+    pub channels: Option<u32>,
+    pub audio_codec: Option<String>,
+    pub title: Option<String>,
+    pub artist: Option<String>,
+}
+
 #[tauri::command]
 fn probe_audio(file_path: String) -> Result<vex_video::AudioMetadata, String> {
     let clean = clean_file_path(&file_path);
     vex_video::probe_audio(&clean)
         .ok_or_else(|| "Failed to probe audio streams with ffprobe".to_string())
+}
+
+#[tauri::command]
+fn read_audio_file(file_path: String) -> Result<AudioDataResponse, String> {
+    let clean = clean_file_path(&file_path);
+    let path = Path::new(&clean);
+    if !path.exists() {
+        return Err(format!("File does not exist: {}", clean));
+    }
+
+    let bytes = std::fs::read(path).map_err(|e| format!("Failed to read audio file: {}", e))?;
+    let file_size = bytes.len() as u64;
+
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    let (mime_type, default_codec) = match ext.as_str() {
+        "wav" => ("audio/wav", "pcm_s16le"),
+        "mp3" => ("audio/mpeg", "mp3"),
+        "ogg" | "oga" => ("audio/ogg", "vorbis"),
+        "flac" => ("audio/flac", "flac"),
+        "aac" => ("audio/aac", "aac"),
+        "m4a" => ("audio/mp4", "aac"),
+        "opus" => ("audio/opus", "opus"),
+        "aiff" | "aif" => ("audio/aiff", "pcm_s16be"),
+        _ => ("audio/wav", "unknown"),
+    };
+
+    let mut duration_seconds = 0.0;
+    let mut sample_rate = None;
+    let mut channels = None;
+    let mut audio_codec = Some(default_codec.to_string());
+    let mut title = None;
+    let mut artist = None;
+
+    // Fast sub-microsecond header parse for WAV files:
+    if ext == "wav" && bytes.len() >= 44 {
+        if &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WAVE" {
+            let mut pos = 12;
+            let mut byte_rate = 0u32;
+            while pos + 8 <= bytes.len() {
+                let chunk_id = &bytes[pos..pos + 4];
+                let chunk_len = u32::from_le_bytes(bytes[pos + 4..pos + 8].try_into().unwrap_or([0; 4])) as usize;
+                let chunk_data_start = pos + 8;
+                if chunk_id == b"fmt " && chunk_data_start + 16 <= bytes.len() {
+                    let ch = u16::from_le_bytes(bytes[chunk_data_start + 2..chunk_data_start + 4].try_into().unwrap_or([1, 0]));
+                    let sr = u32::from_le_bytes(bytes[chunk_data_start + 4..chunk_data_start + 8].try_into().unwrap_or([0; 4]));
+                    let br = u32::from_le_bytes(bytes[chunk_data_start + 8..chunk_data_start + 12].try_into().unwrap_or([0; 4]));
+                    channels = Some(ch as u32);
+                    sample_rate = Some(sr);
+                    byte_rate = br;
+                } else if chunk_id == b"data" {
+                    if byte_rate > 0 {
+                        duration_seconds = chunk_len as f64 / byte_rate as f64;
+                    }
+                    break;
+                }
+                let step = 8 + chunk_len + (chunk_len % 2);
+                if step == 0 || pos.checked_add(step).is_none() {
+                    break;
+                }
+                pos += step;
+            }
+        }
+    }
+
+    // Fall back to probe_audio if duration could not be extracted from header
+    if duration_seconds <= 0.0 {
+        if let Some(meta) = vex_video::probe_audio(path) {
+            duration_seconds = meta.duration_seconds;
+            if sample_rate.is_none() {
+                sample_rate = meta.sample_rate;
+            }
+            if channels.is_none() {
+                channels = meta.channels;
+            }
+            if let Some(c) = meta.audio_codec {
+                audio_codec = Some(c);
+            }
+            title = meta.title;
+            artist = meta.artist;
+        }
+    }
+
+    let data_base64 = BASE64_STANDARD.encode(&bytes);
+
+    Ok(AudioDataResponse {
+        data_base64,
+        mime_type: mime_type.to_string(),
+        file_size,
+        duration_seconds,
+        sample_rate,
+        channels,
+        audio_codec,
+        title,
+        artist,
+    })
 }
 
 #[tauri::command]
@@ -1078,6 +1191,16 @@ fn main() {
             use tauri::Manager;
             ipc_service::start_ipc_listener(app.handle().clone());
             if let Some(window) = app.get_webview_window("main") {
+                #[cfg(target_os = "linux")]
+                {
+                    use webkit2gtk::{SettingsExt, WebViewExt};
+                    let _ = window.with_webview(|wv| {
+                        let webview = wv.inner();
+                        if let Some(settings) = webview.settings() {
+                            settings.set_media_playback_requires_user_gesture(false);
+                        }
+                    });
+                }
                 if fullscreen_flag {
                     let _ = window.set_fullscreen(true);
                 }
@@ -1103,6 +1226,7 @@ fn main() {
             get_thumbnail_base64,
             probe_video,
             probe_audio,
+            read_audio_file,
             apply_image_transforms,
             trim_video_clip,
             trim_audio_clip,

@@ -25,3 +25,6 @@ rfd = "0.15"
 arboard = "3"
 tauri-runtime = "2"
 lru = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = "2.0"

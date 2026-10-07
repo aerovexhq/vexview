@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useViewerStore } from '../stores/useViewerStore';
+import { audioEngine } from '../lib/audioEngine';
 import { CropOverlay } from './CropOverlay';
 import { CropControlBar } from './CropControlBar';
 import { AnnotationLayer } from './AnnotationLayer';
@@ -94,7 +95,6 @@ export const Viewport: React.FC = () => {
   const viewportRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
   const panRef = useRef(pan);
@@ -130,10 +130,7 @@ export const Viewport: React.FC = () => {
       const rect = trackEl.getBoundingClientRect();
       const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
       const newTime = ratio * duration;
-      setCurrentTime(newTime);
-      if (audioRef.current) {
-        audioRef.current.currentTime = newTime;
-      }
+      audioEngine.seek(newTime);
     };
 
     updateProgress(e.clientX);
@@ -162,24 +159,14 @@ export const Viewport: React.FC = () => {
     if (newVol > 0 && isMuted) {
       setIsMuted(false);
     }
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : newVol;
-    }
+    audioEngine.setVolume(newVol);
   };
 
   const handleToggleMute = () => {
     const nextMuted = !isMuted;
     setIsMuted(nextMuted);
-    if (audioRef.current) {
-      audioRef.current.volume = nextMuted ? 0 : volume;
-    }
+    audioEngine.setMuted(nextMuted);
   };
-
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume;
-    }
-  }, [volume, isMuted, isAudio]);
 
   // Synchronize internal refs with store coordinates
   useEffect(() => {
@@ -599,24 +586,22 @@ export const Viewport: React.FC = () => {
     }
   };
 
-  // Synchronize HTML5 video/audio elements with isPlaying state
+  // Synchronize HTML5 video element with isPlaying state
   useEffect(() => {
-    const mediaEl = isVideo ? videoRef.current : isAudio ? audioRef.current : null;
-    if (!mediaEl) return;
+    if (!isVideo || !videoRef.current) return;
     if (isPlaying) {
-      mediaEl.play().catch(() => {});
+      videoRef.current.play().catch(() => {});
     } else {
-      mediaEl.pause();
+      videoRef.current.pause();
     }
-  }, [isPlaying, isVideo, isAudio]);
+  }, [isPlaying, isVideo]);
 
   // Handle seeking from timeline
   useEffect(() => {
-    if (seekTime !== null) {
-      if (videoRef.current) videoRef.current.currentTime = seekTime;
-      if (audioRef.current) audioRef.current.currentTime = seekTime;
+    if (isVideo && seekTime !== null && videoRef.current) {
+      videoRef.current.currentTime = seekTime;
     }
-  }, [seekTime]);
+  }, [isVideo, seekTime]);
 
   if (!current) {
     if (sequence.length > 0) {
@@ -811,17 +796,6 @@ export const Viewport: React.FC = () => {
 
       {isAudio ? (
         <div className={styles.audioViewportContainer}>
-          <audio
-            ref={audioRef}
-            src={assetUrl}
-            onLoadedMetadata={(e) => {
-              const d = (e.target as HTMLAudioElement).duration;
-              if (d > 0) setDuration(d);
-            }}
-            onTimeUpdate={(e) => setCurrentTime((e.target as HTMLAudioElement).currentTime)}
-            onEnded={() => setIsPlaying(false)}
-          />
-
           <div className={styles.audioProgressCard} data-role="audio-card">
             {/* Header: File Name, Badge, Spec Pill, Edit Mode Button */}
             <div className={styles.audioHeaderRow}>

@@ -54,7 +54,7 @@ export const App: React.FC = () => {
     getCliOptions()
       .then((opts) => {
         const loadPromise = opts.target
-          ? openTargetFile(opts.target)
+          ? openTargetFile(opts.target, true)
           : loadFolder('.');
         loadPromise.finally(() => {
           if (opts.edit) {
@@ -111,7 +111,7 @@ export const App: React.FC = () => {
         }>('cli-open-target', (event) => {
           const payload = event.payload;
           if (payload.target) {
-            openTargetFile(payload.target);
+            openTargetFile(payload.target, true);
           }
           if (payload.edit) {
             setActiveMode('edit');

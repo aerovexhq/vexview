@@ -6207,6 +6207,7 @@ dependencies = [
  "vex-edit",
  "vex-image",
  "vex-video",
+ "webkit2gtk",
 ]
 
 [[package]]

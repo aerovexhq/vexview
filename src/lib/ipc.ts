@@ -474,6 +474,16 @@ export type AnnotationItem =
 export interface AnnotationsRequest {
   path: string;
   annotations: AnnotationItem[];
+  rotation?: number;
+  flip_h?: boolean;
+  flip_v?: boolean;
+  crop?: { x: number; y: number; width: number; height: number };
+  brightness?: number;
+  contrast?: number;
+  blur?: number;
+  saturation?: number;
+  warmth?: number;
+  filter?: string;
   destination?: string | null;
   overwrite?: boolean;
   format?: string | null;

@@ -672,6 +672,16 @@ async fn compose_audio_sequence(req: vex_video::ComposeAudioRequest) -> Result<S
 pub struct AnnotationsRequest {
     pub path: String,
     pub annotations: Vec<vex_edit::AnnotationItem>,
+    pub rotation: Option<i32>,
+    pub flip_h: Option<bool>,
+    pub flip_v: Option<bool>,
+    pub crop: Option<CropParams>,
+    pub brightness: Option<i32>,
+    pub contrast: Option<f32>,
+    pub blur: Option<f32>,
+    pub saturation: Option<f32>,
+    pub warmth: Option<f32>,
+    pub filter: Option<String>,
     pub destination: Option<String>,
     pub overwrite: Option<bool>,
     pub format: Option<String>,
@@ -688,7 +698,64 @@ fn apply_image_annotations(req: AnnotationsRequest) -> Result<String, String> {
     let loaded =
         vex_image::load_image(&clean).map_err(|e| format!("Failed to load image: {}", e))?;
 
-    let rendered = vex_edit::render_annotations(&loaded.image, &req.annotations);
+    let mut current = if req.annotations.is_empty() {
+        loaded.image
+    } else {
+        vex_edit::render_annotations(&loaded.image, &req.annotations)
+    };
+
+    if let Some(rot) = req.rotation {
+        match rot % 360 {
+            90 | -270 => current = vex_edit::rotate_90(&current),
+            180 | -180 => current = vex_edit::rotate_180(&current),
+            270 | -90 => current = vex_edit::rotate_270(&current),
+            _ => {}
+        }
+    }
+    if req.flip_h.unwrap_or(false) {
+        current = vex_edit::flip_h(&current);
+    }
+    if req.flip_v.unwrap_or(false) {
+        current = vex_edit::flip_v(&current);
+    }
+    if let Some(crop) = req.crop {
+        current = vex_edit::crop(&current, crop.x, crop.y, crop.width, crop.height);
+    }
+    if let Some(b) = req.brightness {
+        if b != 0 {
+            current = vex_edit::adjust_brightness(&current, b);
+        }
+    }
+    if let Some(c) = req.contrast {
+        if (c - 0.0).abs() > 0.01 {
+            current = vex_edit::adjust_contrast(&current, c);
+        }
+    }
+    if let Some(sat) = req.saturation {
+        if sat.abs() > 0.01 {
+            current = vex_edit::adjust_saturation(&current, sat);
+        }
+    }
+    if let Some(w) = req.warmth {
+        if w.abs() > 0.01 {
+            current = vex_edit::adjust_warmth(&current, w);
+        }
+    }
+    if let Some(ref filter_name) = req.filter {
+        match filter_name.as_str() {
+            "grayscale" => current = vex_edit::grayscale(&current),
+            "invert" => current = vex_edit::invert(&current),
+            "sepia" => current = vex_edit::sepia(&current),
+            _ => {}
+        }
+    }
+    if let Some(blur_val) = req.blur {
+        if blur_val > 0.0 {
+            current = vex_edit::blur(&current, blur_val);
+        }
+    }
+
+    let rendered = current;
 
     let target_ext = req
         .format

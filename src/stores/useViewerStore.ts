@@ -14,6 +14,7 @@ import {
   copyImageToClipboard,
 } from '../lib/ipc';
 import { audioEngine } from '../lib/audioEngine';
+import { renderCompositeEndImage } from '../lib/imageComposite';
 
 export type ActiveSubTool =
   | 'select'
@@ -466,14 +467,36 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
 
   copyNotice: false,
   copyCurrentToClipboard: async () => {
-    const { items, currentIndex, activeMode, editor } = get();
+    const { items, currentIndex, activeMode, editor, annotations } = get();
     const current = items[currentIndex];
-    if (!current || current.media_type === 'Video') return;
+    if (!current || current.media_type === 'Video' || current.media_type === 'Audio') return;
     try {
-      await copyImageToClipboard(
-        current.path,
-        activeMode === 'edit' && editor.previewUrl ? editor.previewUrl : undefined,
-      );
+      const hasEdits =
+        activeMode === 'edit' ||
+        editor.rotation !== 0 ||
+        editor.flipH ||
+        editor.flipV ||
+        editor.crop !== null ||
+        editor.brightness !== 0 ||
+        editor.contrast !== 0 ||
+        editor.blur > 0 ||
+        editor.saturation !== 0 ||
+        editor.warmth !== 0 ||
+        editor.filter !== 'none' ||
+        annotations.length > 0;
+
+      if (hasEdits) {
+        let dataUrl: string | undefined;
+        try {
+          dataUrl = await renderCompositeEndImage();
+        } catch (renderErr) {
+          console.warn('Failed to render frontend composite, falling back to original:', renderErr);
+        }
+        await copyImageToClipboard(dataUrl ? undefined : current.path, dataUrl);
+      } else {
+        await copyImageToClipboard(current.path, undefined);
+      }
+
       set({ copyNotice: true });
       setTimeout(() => {
         set({ copyNotice: false });

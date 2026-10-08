@@ -551,8 +551,8 @@ fn export_video_to_gif(
 }
 
 #[tauri::command]
-async fn open_file_dialog() -> Result<Option<String>, String> {
-    let file = rfd::AsyncFileDialog::new()
+async fn open_file_dialog() -> Result<Vec<String>, String> {
+    let files = rfd::AsyncFileDialog::new()
         .add_filter(
             "All Media Files",
             &[
@@ -577,11 +577,33 @@ async fn open_file_dialog() -> Result<Option<String>, String> {
                 "mp3", "wav", "flac", "aac", "ogg", "oga", "m4a", "opus", "wma", "aiff", "mid", "midi",
             ],
         )
-        .set_title("Open Media File")
-        .pick_file()
+        .set_title("Open Media Files")
+        .pick_files()
         .await;
 
-    Ok(file.map(|f| f.path().to_string_lossy().to_string()))
+    Ok(files
+        .unwrap_or_default()
+        .into_iter()
+        .map(|f| f.path().to_string_lossy().to_string())
+        .collect())
+}
+
+#[tauri::command]
+fn scan_files(paths: Vec<String>) -> Result<Vec<MediaItem>, String> {
+    let mut items = Vec::new();
+    for p in paths {
+        let clean = clean_file_path(&p);
+        let path = Path::new(&clean);
+        if path.is_file() {
+            if let Some(item) = vex_core::MediaItem::from_path(path) {
+                items.push(item);
+            }
+        } else if path.is_dir() {
+            let dir_items = vex_core::scan_directory(path, vex_core::ScanFilter::AllMedia);
+            items.extend(dir_items);
+        }
+    }
+    Ok(items)
 }
 
 #[tauri::command]
@@ -1100,6 +1122,8 @@ fn toggle_maximize_window(window: tauri::WebviewWindow) -> Result<bool, String> 
 
 #[tauri::command]
 fn close_window(window: tauri::WebviewWindow) -> Result<(), String> {
+    use tauri::Emitter;
+    let _ = window.emit("vexview:stop-playback", ());
     window.close().map_err(|e| e.to_string())
 }
 
@@ -1280,6 +1304,8 @@ fn main() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                use tauri::Emitter;
+                let _ = window.emit("vexview:stop-playback", ());
                 let config = vex_core::ViewerConfig::load();
                 if config.keep_running_in_background {
                     api.prevent_close();
@@ -1289,6 +1315,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             scan_folder,
+            scan_files,
             load_image_detail,
             get_thumbnail_base64,
             probe_video,

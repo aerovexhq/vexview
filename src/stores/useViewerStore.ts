@@ -12,6 +12,7 @@ import {
   openFileDialog,
   openFolderDialog,
   copyImageToClipboard,
+  scanFiles,
 } from '../lib/ipc';
 import { audioEngine } from '../lib/audioEngine';
 import { renderCompositeEndImage } from '../lib/imageComposite';
@@ -178,8 +179,10 @@ interface ViewerStore {
   setTrimRange: (range: [number, number]) => void;
   updateEditor: (partial: Partial<EditorState>) => void;
   resetEditor: () => void;
+  stopAllPlayback: () => void;
   openMediaFile: () => Promise<void>;
   openTargetFile: (filePath: string, autoPlay?: boolean) => Promise<void>;
+  openTargetFiles: (filePaths: string[], autoPlay?: boolean) => Promise<void>;
   openMediaFolder: () => Promise<void>;
   copyNotice: boolean;
   copyCurrentToClipboard: () => Promise<void>;
@@ -437,6 +440,19 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
   setSlideshow: (isSlideshowActive) => set({ isSlideshowActive }),
   toggleSlideshow: () => set((s) => ({ isSlideshowActive: !s.isSlideshowActive })),
 
+  stopAllPlayback: () => {
+    audioEngine.stopPlayback();
+    if (typeof document !== 'undefined') {
+      document.querySelectorAll('video, audio').forEach((media) => {
+        try {
+          (media as HTMLMediaElement).pause();
+          (media as HTMLMediaElement).currentTime = 0;
+        } catch (_) {}
+      });
+    }
+    set({ isPlaying: false, isSlideshowActive: false });
+  },
+
   setIsPlaying: (isPlaying) => {
     const { items, currentIndex } = get();
     const current = items[currentIndex];
@@ -660,11 +676,67 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
     }
   },
 
+  openTargetFiles: async (filePaths: string[], autoPlay: boolean = true) => {
+    if (!filePaths || filePaths.length === 0) return;
+    if (filePaths.length === 1) {
+      return get().openTargetFile(filePaths[0], autoPlay);
+    }
+
+    try {
+      audioEngine.stopPlayback();
+
+      const initialItems: MediaItem[] = filePaths.map((fp) => {
+        const cleanPath = fp.replace(/^file:\/\//, '');
+        const fileName = cleanPath.split('/').pop() || 'media';
+        const ext = fileName.split('.').pop()?.toLowerCase() || '';
+        const isVid = ['mp4', 'mkv', 'webm', 'mov', 'avi', 'flv', 'wmv'].includes(ext);
+        const isAud = [
+          'mp3', 'wav', 'flac', 'aac', 'ogg', 'oga', 'm4a', 'opus', 'wma', 'aiff', 'aif', 'mid', 'midi', 'ac3', 'dts', 'alac', 'amr'
+        ].includes(ext);
+        const isSvg = ext === 'svg' || ext === 'svgz';
+        return {
+          path: cleanPath,
+          file_name: fileName,
+          media_type: isVid ? 'Video' : isAud ? 'Audio' : isSvg ? 'Svg' : 'Image',
+          file_size: 0,
+        };
+      });
+
+      const firstClean = filePaths[0].replace(/^file:\/\//, '');
+      const parentDir = firstClean.substring(0, firstClean.lastIndexOf('/')) || '.';
+
+      set({
+        folderPath: parentDir,
+        items: initialItems,
+        currentIndex: 0,
+        loading: false,
+        error: null,
+      });
+
+      const selectPromise = get().selectIndex(0, autoPlay);
+
+      scanFiles(filePaths)
+        .then((scanned) => {
+          if (scanned && scanned.length > 0) {
+            const current = get();
+            if (current.items.length === filePaths.length) {
+              set({ items: scanned });
+            }
+          }
+        })
+        .catch(() => {});
+
+      await selectPromise;
+    } catch (e) {
+      set({ error: String(e), loading: false });
+    }
+  },
+
   openMediaFile: async () => {
     try {
-      const selectedPath = await openFileDialog();
-      if (!selectedPath) return;
-      await get().openTargetFile(selectedPath, true);
+      const selectedPaths = await openFileDialog();
+      if (!selectedPaths || selectedPaths.length === 0) return;
+      await get().openTargetFiles(selectedPaths, true);
     } catch (e) {
       set({ error: String(e), loading: false });
     }

@@ -253,11 +253,21 @@ export async function exportGif(
   });
 }
 
-export async function openFileDialog(): Promise<string | null> {
+export async function openFileDialog(): Promise<string[]> {
   if (!isTauri) {
-    return null;
+    return [];
   }
-  return await invoke<string | null>('open_file_dialog');
+  const res = await invoke<string[] | string | null>('open_file_dialog');
+  if (Array.isArray(res)) return res;
+  if (typeof res === 'string') return [res];
+  return [];
+}
+
+export async function scanFiles(paths: string[]): Promise<MediaItem[]> {
+  if (!isTauri || paths.length === 0) {
+    return [];
+  }
+  return await invoke<MediaItem[]>('scan_files', { paths });
 }
 
 export async function openFolderDialog(): Promise<string | null> {

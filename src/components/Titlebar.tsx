@@ -24,6 +24,7 @@ export const Titlebar: React.FC<TitlebarProps> = ({ onOpenSettings }) => {
     toggleInspector,
     showInspector,
     openMediaFile,
+    stopAllPlayback,
   } = useViewerStore();
 
   const [isMaximized, setIsMaximized] = useState(false);
@@ -54,6 +55,7 @@ export const Titlebar: React.FC<TitlebarProps> = ({ onOpenSettings }) => {
 
   const handleClose = (e: React.MouseEvent) => {
     e.stopPropagation();
+    stopAllPlayback();
     closeWindow();
   };
 
@@ -118,7 +120,7 @@ export const Titlebar: React.FC<TitlebarProps> = ({ onOpenSettings }) => {
           onClick={openMediaFile}
           data-no-drag="true"
           data-tauri-drag-region="false"
-          title="Open Media File (Ctrl+O)"
+          title="Open Media Files (Ctrl+O)"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -129,6 +131,11 @@ export const Titlebar: React.FC<TitlebarProps> = ({ onOpenSettings }) => {
         {current && (
           <span className={styles.fileName} data-tauri-drag-region="deep">
             {current.file_name}
+            {items.length > 1 && (
+              <span style={{ opacity: 0.6, marginLeft: '6px', fontSize: '11px' }}>
+                ({currentIndex + 1} / {items.length})
+              </span>
+            )}
           </span>
         )}
       </div>

@@ -10,6 +10,8 @@ import { SettingsModal } from './components/SettingsModal';
 import { FileTypeBadge } from './components/FileTypeBadge';
 import { useViewerStore } from './stores/useViewerStore';
 import { getCliOptions, startWindowResize, isWindowMaximized } from './lib/ipc';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { listen } from '@tauri-apps/api/event';
 import styles from './App.module.css';
 
 export const App: React.FC = () => {
@@ -30,7 +32,8 @@ export const App: React.FC = () => {
     toggleFilmstrip,
     toggleInspector,
     openMediaFile,
-    openTargetFile,
+    openTargetFiles,
+    stopAllPlayback,
     copyCurrentToClipboard,
     isSlideshowActive,
     setSlideshow,
@@ -53,9 +56,14 @@ export const App: React.FC = () => {
   useEffect(() => {
     getCliOptions()
       .then((opts) => {
-        const loadPromise = opts.target
-          ? openTargetFile(opts.target, true)
-          : loadFolder('.');
+        const targets =
+          opts.targets && opts.targets.length > 0
+            ? opts.targets
+            : opts.target
+              ? [opts.target]
+              : [];
+        const loadPromise =
+          targets.length > 0 ? openTargetFiles(targets, true) : loadFolder('.');
         loadPromise.finally(() => {
           if (opts.edit) {
             setActiveMode('edit');
@@ -68,7 +76,7 @@ export const App: React.FC = () => {
       .catch(() => {
         loadFolder('.');
       });
-  }, [loadFolder, openTargetFile, setActiveMode, setSlideshow]);
+  }, [loadFolder, openTargetFiles, setActiveMode, setSlideshow]);
 
   // Slideshow auto-advance interval
   useEffect(() => {
@@ -82,13 +90,11 @@ export const App: React.FC = () => {
   // Listen to open-settings event from system tray
   useEffect(() => {
     let unlisten: (() => void) | undefined;
-    import('@tauri-apps/api/event')
-      .then(({ listen }) => {
-        listen('open-settings', () => {
-          setIsSettingsOpen(true);
-        }).then((u) => {
-          unlisten = u;
-        });
+    listen('open-settings', () => {
+      setIsSettingsOpen(true);
+    })
+      .then((u) => {
+        unlisten = u;
       })
       .catch(() => {});
 
@@ -100,35 +106,92 @@ export const App: React.FC = () => {
   // Listen to incoming target files forwarded by CLI single-instance or warm background service
   useEffect(() => {
     let unlistenTarget: (() => void) | undefined;
-    import('@tauri-apps/api/event')
-      .then(({ listen }) => {
-        listen<{
-          target?: string;
-          targets?: string[];
-          edit?: boolean;
-          fullscreen?: boolean;
-          slideshow?: boolean;
-        }>('cli-open-target', (event) => {
-          const payload = event.payload;
-          if (payload.target) {
-            openTargetFile(payload.target, true);
-          }
-          if (payload.edit) {
-            setActiveMode('edit');
-          }
-          if (payload.slideshow) {
-            setSlideshow(true);
-          }
-        }).then((u) => {
-          unlistenTarget = u;
-        });
+    listen<{
+      target?: string;
+      targets?: string[];
+      edit?: boolean;
+      fullscreen?: boolean;
+      slideshow?: boolean;
+    }>('cli-open-target', (event) => {
+      const payload = event.payload;
+      const targets =
+        payload.targets && payload.targets.length > 0
+          ? payload.targets
+          : payload.target
+            ? [payload.target]
+            : [];
+      if (targets.length > 0) {
+        openTargetFiles(targets, true);
+      }
+      if (payload.edit) {
+        setActiveMode('edit');
+      }
+      if (payload.slideshow) {
+        setSlideshow(true);
+      }
+    })
+      .then((u) => {
+        unlistenTarget = u;
       })
       .catch(() => {});
 
     return () => {
       if (unlistenTarget) unlistenTarget();
     };
-  }, [openTargetFile, setActiveMode, setSlideshow]);
+  }, [openTargetFiles, setActiveMode, setSlideshow]);
+
+  // Stop playback when window close is requested by window manager or system
+  useEffect(() => {
+    let unlistenStop: (() => void) | undefined;
+    listen('vexview:stop-playback', () => {
+      stopAllPlayback();
+    })
+      .then((u) => {
+        unlistenStop = u;
+      })
+      .catch(() => {});
+
+    const appWindow = getCurrentWebviewWindow();
+    const unlistenClosePromise = appWindow.onCloseRequested(() => {
+      stopAllPlayback();
+    });
+
+    const handleBeforeUnload = () => {
+      stopAllPlayback();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      if (unlistenStop) unlistenStop();
+      unlistenClosePromise.then((u) => u()).catch(() => {});
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [stopAllPlayback]);
+
+  // Support drag-and-drop of multiple files into viewer
+  useEffect(() => {
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('dragover', handleDragOver);
+    window.addEventListener('drop', handleDragOver);
+
+    const appWindow = getCurrentWebviewWindow();
+    const unlistenDropPromise = appWindow.onDragDropEvent((event) => {
+      if (event.payload.type === 'drop') {
+        const paths = event.payload.paths;
+        if (paths && paths.length > 0) {
+          openTargetFiles(paths, true);
+        }
+      }
+    });
+
+    return () => {
+      window.removeEventListener('dragover', handleDragOver);
+      window.removeEventListener('drop', handleDragOver);
+      unlistenDropPromise.then((u) => u()).catch(() => {});
+    };
+  }, [openTargetFiles]);
 
   // Global tactile keyboard shortcuts
   useEffect(() => {

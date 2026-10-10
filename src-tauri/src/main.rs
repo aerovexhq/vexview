@@ -3,6 +3,7 @@
 
 mod cli;
 mod ipc_service;
+mod media_server;
 
 use base64::prelude::*;
 use vex_core::{MediaItem, ScanFilter};
@@ -219,8 +220,21 @@ fn get_thumbnail_base64(file_path: String, max_size: u32) -> Result<String, Stri
 #[tauri::command]
 fn probe_video(file_path: String) -> Result<vex_video::VideoMetadata, String> {
     let clean = clean_file_path(&file_path);
-    vex_video::probe_video(&clean)
-        .ok_or_else(|| "Failed to probe video streams with ffprobe".to_string())
+    let mut meta = vex_video::probe_video(&clean)
+        .ok_or_else(|| "Failed to probe video streams with ffprobe".to_string())?;
+    meta.stream_url = media_server::get_stream_url(&clean);
+    Ok(meta)
+}
+
+#[tauri::command]
+fn get_media_server_port() -> u16 {
+    media_server::get_server_port().unwrap_or(0)
+}
+
+#[tauri::command]
+fn get_video_stream_url(file_path: String) -> String {
+    let clean = clean_file_path(&file_path);
+    media_server::get_stream_url(&clean).unwrap_or_else(|| clean)
 }
 
 #[derive(Serialize, Deserialize)]
@@ -1265,6 +1279,9 @@ fn main() {
         if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
             std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         }
+        if std::env::var("GST_PLUGIN_FEATURE_RANK").is_err() {
+            std::env::set_var("GST_PLUGIN_FEATURE_RANK", "nvh264dec:0,nvh265dec:0,nvav1dec:0");
+        }
     }
 
     env_logger::init();
@@ -1280,6 +1297,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .setup(move |app| {
             use tauri::Manager;
+            media_server::start_media_server();
             ipc_service::start_ipc_listener(app.handle().clone());
             if let Some(window) = app.get_webview_window("main") {
                 #[cfg(target_os = "linux")]
@@ -1289,6 +1307,11 @@ fn main() {
                         let webview = wv.inner();
                         if let Some(settings) = webview.settings() {
                             settings.set_media_playback_requires_user_gesture(false);
+                            settings.set_enable_mediasource(true);
+                            settings.set_enable_media_stream(true);
+                            settings.set_media_playback_allows_inline(true);
+                            settings.set_allow_file_access_from_file_urls(true);
+                            settings.set_allow_universal_access_from_file_urls(true);
                         }
                     });
                 }
@@ -1319,6 +1342,8 @@ fn main() {
             load_image_detail,
             get_thumbnail_base64,
             probe_video,
+            get_media_server_port,
+            get_video_stream_url,
             probe_audio,
             read_audio_file,
             apply_image_transforms,

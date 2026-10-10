@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useViewerStore } from '../stores/useViewerStore';
 import { audioEngine } from '../lib/audioEngine';
+import { getVideoStreamUrl } from '../lib/ipc';
 import { CropOverlay } from './CropOverlay';
 import { CropControlBar } from './CropControlBar';
 import { AnnotationLayer } from './AnnotationLayer';
@@ -107,6 +108,7 @@ export const Viewport: React.FC = () => {
   const [isSplitting, setIsSplitting] = useState(false);
   const [volume, setVolume] = useState(1.0);
   const [isMuted, setIsMuted] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
 
   const current = items[currentIndex];
   const isVideo = current?.media_type === 'Video';
@@ -167,6 +169,19 @@ export const Viewport: React.FC = () => {
     setIsMuted(nextMuted);
     audioEngine.setMuted(nextMuted);
   };
+
+  // Synchronize video element audio parameters
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.volume = isMuted ? 0 : volume;
+      videoRef.current.muted = isMuted;
+    }
+  }, [volume, isMuted, isVideo]);
+
+  // Clear video errors when active media changes
+  useEffect(() => {
+    setVideoError(null);
+  }, [current?.path]);
 
   // Synchronize internal refs with store coordinates
   useEffect(() => {
@@ -590,9 +605,18 @@ export const Viewport: React.FC = () => {
   useEffect(() => {
     if (!isVideo || !videoRef.current) return;
     if (isPlaying) {
-      videoRef.current.play().catch(() => {});
+      if (videoRef.current.paused) {
+        const promise = videoRef.current.play();
+        if (promise !== undefined) {
+          promise.catch((err) => {
+            console.debug('Video autoplay/play was deferred or aborted:', err);
+          });
+        }
+      }
     } else {
-      videoRef.current.pause();
+      if (!videoRef.current.paused) {
+        videoRef.current.pause();
+      }
     }
   }, [isPlaying, isVideo]);
 
@@ -722,6 +746,9 @@ export const Viewport: React.FC = () => {
   }
 
   const assetUrl = convertFileSrc(current.path);
+  const videoSrc = isVideo
+    ? (videoDetail?.stream_url || getVideoStreamUrl(current.path, assetUrl))
+    : assetUrl;
   const displaySrc =
     editor.previewUrl ||
     (current.media_type === 'Svg' && imageDetail?.data_url ? imageDetail.data_url : (imageDetail?.data_url || assetUrl));
@@ -780,6 +807,18 @@ export const Viewport: React.FC = () => {
             <polyline points="20 6 9 17 4 12" />
           </svg>
           <span>Copied image to clipboard</span>
+        </div>
+      )}
+
+      {/* Video Decode / Playback Error Toast */}
+      {videoError && (
+        <div className={styles.copyToast} style={{ background: 'rgba(220, 38, 38, 0.95)', border: '1px solid rgba(248, 113, 113, 0.4)' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <span>{videoError}</span>
         </div>
       )}
 
@@ -939,12 +978,42 @@ export const Viewport: React.FC = () => {
             {isVideo ? (
               <video
                 ref={videoRef}
-                src={assetUrl}
+                src={videoSrc}
                 className={styles.videoElement}
                 onLoadedMetadata={(e) => {
                   const d = (e.target as HTMLVideoElement).duration;
                   if (d > 0) setDuration(d);
                   centerAndFitMedia();
+                }}
+                onCanPlay={() => {
+                  if (isPlaying && videoRef.current && videoRef.current.paused) {
+                    videoRef.current.play().catch(() => {});
+                  }
+                }}
+                onPlay={() => {
+                  if (!isPlaying) setIsPlaying(true);
+                }}
+                onPause={() => {
+                  if (isPlaying) setIsPlaying(false);
+                }}
+                onError={(e) => {
+                  const err = (e.target as HTMLVideoElement).error;
+                  let msg = 'Failed to load video stream.';
+                  if (err) {
+                    if (err.code === 4) {
+                      msg = 'Video codec or format is not supported by system media decoders.';
+                    } else if (err.code === 3) {
+                      msg = 'Video decoding error occurred during playback.';
+                    } else if (err.code === 2) {
+                      msg = 'Network or streaming error while loading video.';
+                    }
+                  }
+                  console.error('Video element playback error:', err);
+                  setVideoError(msg);
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsPlaying(!isPlaying);
                 }}
                 onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
                 loop

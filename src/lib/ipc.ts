@@ -40,6 +40,7 @@ export interface VideoMetadata {
   audio_codec?: string;
   frame_rate?: number;
   bit_rate?: number;
+  stream_url?: string;
 }
 
 export interface TransformParams {
@@ -114,6 +115,28 @@ export async function getThumbnail(filePath: string, maxSize = 120): Promise<str
   return await invoke<string>('get_thumbnail_base64', { filePath, maxSize });
 }
 
+let cachedMediaPort: number | null = null;
+
+export async function getMediaServerPort(): Promise<number> {
+  if (cachedMediaPort !== null && cachedMediaPort > 0) return cachedMediaPort;
+  if (!isTauri) return 0;
+  try {
+    const port = await invoke<number>('get_media_server_port');
+    if (port > 0) cachedMediaPort = port;
+    return port;
+  } catch (e) {
+    console.error('Failed to get media server port:', e);
+    return 0;
+  }
+}
+
+export function getVideoStreamUrl(filePath: string, fallbackUrl?: string): string {
+  if (cachedMediaPort && cachedMediaPort > 0) {
+    return `http://127.0.0.1:${cachedMediaPort}/media?path=${encodeURIComponent(filePath)}`;
+  }
+  return fallbackUrl || filePath;
+}
+
 export async function probeVideo(filePath: string): Promise<VideoMetadata> {
   if (!isTauri) {
     return {
@@ -126,7 +149,14 @@ export async function probeVideo(filePath: string): Promise<VideoMetadata> {
       bit_rate: 24000000,
     };
   }
-  return await invoke<VideoMetadata>('probe_video', { filePath });
+  const meta = await invoke<VideoMetadata>('probe_video', { filePath });
+  if (meta.stream_url) {
+    const match = meta.stream_url.match(/127\.0\.0\.1:(\d+)/);
+    if (match && match[1]) {
+      cachedMediaPort = parseInt(match[1], 10);
+    }
+  }
+  return meta;
 }
 
 export async function probeAudio(filePath: string): Promise<AudioMetadata> {

@@ -9,7 +9,7 @@ import { InspectorModal } from './components/InspectorModal';
 import { SettingsModal } from './components/SettingsModal';
 import { FileTypeBadge } from './components/FileTypeBadge';
 import { useViewerStore } from './stores/useViewerStore';
-import { getCliOptions, startWindowResize, isWindowMaximized } from './lib/ipc';
+import { getCliOptions, startWindowResize, isWindowMaximized, getMediaServerPort } from './lib/ipc';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { listen } from '@tauri-apps/api/event';
 import styles from './App.module.css';
@@ -54,6 +54,7 @@ export const App: React.FC = () => {
 
   // Load CLI options or current directory on initial mount
   useEffect(() => {
+    getMediaServerPort().catch(() => {});
     getCliOptions()
       .then((opts) => {
         const targets =

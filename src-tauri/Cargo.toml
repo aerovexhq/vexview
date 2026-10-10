@@ -25,6 +25,8 @@ rfd = "0.15"
 arboard = "3"
 tauri-runtime = "2"
 lru = { workspace = true }
+tokio = { workspace = true }
+mime_guess = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit2gtk = "2.0"

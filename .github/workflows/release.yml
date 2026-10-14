@@ -2,8 +2,6 @@ name: Release Vexview
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "[0-9]+.[0-9]+.[0-9]+*"
       - "v*"

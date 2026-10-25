@@ -1,11 +1,11 @@
 .titlebar {
-  height: 40px;
+  height: 44px;
   background-color: var(--bg-surface);
   border-bottom: 1px solid var(--border-hairline);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 8px 0 14px;
+  padding: 0 10px 0 14px;
   user-select: none;
   z-index: 50;
   cursor: default;
@@ -55,8 +55,8 @@
   align-items: center;
   background-color: var(--bg-card);
   border: 1px solid var(--border-hairline);
-  border-radius: var(--radius-sm);
-  padding: 2px 8px;
+  border-radius: 6px;
+  padding: 3px 8px;
   font-size: 11px;
   color: var(--text-muted);
 }
@@ -64,20 +64,21 @@
 .rightSection {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .actionBtn {
   background: transparent;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   color: var(--text-secondary);
-  padding: 4px 8px;
-  font-size: 11px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   transition: all var(--transition-fast);
 
   &:hover {

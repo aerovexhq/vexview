@@ -6,38 +6,38 @@
 @tailwind utilities;
 
 :root {
-  /* Surfaces & Canvas */
-  --bg-canvas: #090a0d;
-  --bg-canvas-subtle: #0d0f13;
-  --bg-surface: #13151a;
-  --bg-card: #181b21;
-  --bg-card-hover: #22262e;
-  --bg-card-active: #2b303a;
-  --bg-hud: rgba(18, 20, 26, 0.85);
+  /* Surfaces & Canvas (Kortex Architecture) */
+  --bg-canvas: #1b1b1a;
+  --bg-canvas-subtle: #181715;
+  --bg-surface: #232321;
+  --bg-card: #2c2c29;
+  --bg-card-hover: #34332e;
+  --bg-card-active: #3e3d37;
+  --bg-hud: rgba(35, 35, 33, 0.92);
   --bg-glass: rgba(255, 255, 255, 0.04);
   --bg-glass-hover: rgba(255, 255, 255, 0.08);
 
   /* Borders & Dividers */
-  --border-hairline: rgba(255, 255, 255, 0.06);
-  --border-subtle: rgba(255, 255, 255, 0.12);
-  --border-active: #f59e0b;
-  --border-focus: #3b82f6;
+  --border-hairline: #3a3a36;
+  --border-subtle: #45443e;
+  --border-active: #d97757;
+  --border-focus: #d97757;
 
   /* Typography */
-  --text-primary: #f4f5f7;
-  --text-secondary: #9da3af;
-  --text-muted: #656c7a;
-  --text-accent: #f59e0b;
-  --text-accent-hover: #fbbf24;
+  --text-primary: #ece9e1;
+  --text-secondary: #c5c2b8;
+  --text-muted: #98958c;
+  --text-accent: #d97757;
+  --text-accent-hover: #e88b6f;
 
   /* Typography metrics */
   --font-sans: "Inter Variable", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
 
   /* Geometry & Shadows */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
   --radius-full: 9999px;
   --shadow-hud: 0 8px 32px 0 rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
   --shadow-popup: 0 16px 48px -8px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1);

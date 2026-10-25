@@ -7,6 +7,7 @@ import {
   isWindowMaximized,
   startWindowDragging,
 } from '../lib/ipc';
+import { WindowControls } from '@aerovex/strata-ui';
 import styles from './Titlebar.module.css';
 
 interface TitlebarProps {
@@ -272,50 +273,13 @@ export const Titlebar: React.FC<TitlebarProps> = ({ onOpenSettings }) => {
 
         <div className={styles.divider} data-tauri-drag-region="false" />
 
-        {/* Custom Window Frame Controls */}
-        <div className={styles.windowControls} data-no-drag="true" data-tauri-drag-region="false">
-          <button
-            className={styles.windowControlBtn}
-            onClick={handleMinimize}
-            data-no-drag="true"
-            data-tauri-drag-region="false"
-            title="Minimize"
-          >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="4" y1="12" x2="20" y2="12" />
-            </svg>
-          </button>
-          <button
-            className={styles.windowControlBtn}
-            onClick={handleToggleMaximize}
-            data-no-drag="true"
-            data-tauri-drag-region="false"
-            title={isMaximized ? 'Restore' : 'Maximize'}
-          >
-            {isMaximized ? (
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="7" y="3" width="14" height="14" rx="2" />
-                <path d="M3 7v14h14" />
-              </svg>
-            ) : (
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="4" y="4" width="16" height="16" rx="2" />
-              </svg>
-            )}
-          </button>
-          <button
-            className={`${styles.windowControlBtn} ${styles.closeBtn}`}
-            onClick={handleClose}
-            data-no-drag="true"
-            data-tauri-drag-region="false"
-            title="Close"
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <line x1="5" y1="5" x2="19" y2="19" />
-              <line x1="5" y1="19" x2="19" y2="5" />
-            </svg>
-          </button>
-        </div>
+        {/* Standard Strata Window Frame Controls */}
+        <WindowControls
+          onMinimize={handleMinimize}
+          onToggleMaximize={() => void handleToggleMaximize()}
+          onClose={handleClose}
+          isMaximized={isMaximized}
+        />
       </div>
     </header>
   );

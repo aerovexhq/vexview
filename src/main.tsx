@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { StrataThemeProvider } from '@aerovex/strata-ui';
 import App from './App';
 import './styles/tokens.css';
 
@@ -20,7 +21,10 @@ const rootEl = document.getElementById('root');
 if (rootEl) {
   ReactDOM.createRoot(rootEl).render(
     <React.StrictMode>
-      <App />
+      <StrataThemeProvider theme="aerovex" preset="vexview">
+        <App />
+      </StrataThemeProvider>
     </React.StrictMode>,
   );
 }
+

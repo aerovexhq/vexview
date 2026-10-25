@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Copy,
+  Film,
+} from 'lucide-react';
+import { HudPill, Button } from '@aerovex/strata-ui';
 import { useViewerStore } from '../stores/useViewerStore';
-import styles from './FloatingHud.module.css';
 
 export const FloatingHud: React.FC = () => {
   const {
@@ -20,9 +29,8 @@ export const FloatingHud: React.FC = () => {
   const [visible, setVisible] = useState(true);
   const current = items[currentIndex];
 
-  // Auto-hide timer on mouse idle
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setTimeout>;
     const handleActivity = () => {
       setVisible(true);
       clearTimeout(timer);
@@ -43,108 +51,100 @@ export const FloatingHud: React.FC = () => {
     };
   }, [activeMode]);
 
-  // Videos and Audio have their own unified control deck (VideoTimeline) to prevent overlapping
   if (!current || current.media_type === 'Video' || current.media_type === 'Audio') return null;
 
   return (
-    <div className={`${styles.hudWrapper} ${visible ? '' : styles.hidden}`}>
-      <div
-        className={styles.hudContainer}
-        data-role="floating-hud"
-        onPointerDown={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
-        onDoubleClick={(e) => e.stopPropagation()}
-      >
-        {/* Navigation */}
-        <button
-          className={styles.hudBtn}
+    <div
+      className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-30 transition-all duration-300 ${
+        visible ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none'
+      }`}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+    >
+      <HudPill dragRegion={false} className="gap-1 px-2.5 py-1.5 h-10 select-none shadow-xl border-border/80">
+        <Button
+          variant="ghost"
           onClick={prevItem}
           title="Previous Item (Left Arrow / [)"
+          className="h-7 w-7 p-0 justify-center text-muted hover:text-fg"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </button>
+          <ChevronLeft className="w-4 h-4" />
+        </Button>
 
-        <button
-          className={styles.hudBtn}
+        <span className="text-xs font-mono text-muted px-1.5 tabular-nums select-none">
+          {currentIndex + 1} / {items.length}
+        </span>
+
+        <Button
+          variant="ghost"
           onClick={nextItem}
           title="Next Item (Right Arrow / ])"
+          className="h-7 w-7 p-0 justify-center text-muted hover:text-fg"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </button>
+          <ChevronRight className="w-4 h-4" />
+        </Button>
 
-        <div className={styles.divider} />
+        <div className="h-4 w-[1px] bg-border mx-1" />
 
-        {/* Zoom Controls */}
-        <button
-          className={styles.hudBtn}
+        <Button
+          variant="ghost"
           onClick={() => setZoom(zoom * 0.8)}
           title="Zoom Out (-)"
+          className="h-7 w-7 p-0 justify-center text-muted hover:text-fg"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-        </button>
+          <ZoomOut className="w-3.5 h-3.5" />
+        </Button>
 
-        <div
-          className={`${styles.zoomIndicator} tabular-nums`}
+        <button
+          type="button"
           onClick={centerView}
           title="Click to Center and Fit (0 / F)"
+          className="text-xs font-mono text-fg px-1.5 py-0.5 rounded hover:bg-raised transition-colors cursor-pointer tabular-nums select-none"
         >
           {(zoom * 100).toFixed(0)}%
-        </div>
+        </button>
 
-        <button
-          className={styles.hudBtn}
+        <Button
+          variant="ghost"
           onClick={() => setZoom(zoom * 1.25)}
           title="Zoom In (+)"
+          className="h-7 w-7 p-0 justify-center text-muted hover:text-fg"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-        </button>
+          <ZoomIn className="w-3.5 h-3.5" />
+        </Button>
 
-        {/* Center and Fit Button */}
-        <button
-          className={styles.hudBtn}
+        <Button
+          variant="ghost"
           onClick={centerView}
-          title="Center in Safe Viewport (0 / F)"
+          title="Center and Fit (0 / F)"
+          className="h-7 w-7 p-0 justify-center text-muted hover:text-fg"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-            <circle cx="12" cy="12" r="2" />
-          </svg>
-        </button>
+          <Maximize2 className="w-3.5 h-3.5" />
+        </Button>
 
-        {/* Copy Image to Clipboard Button */}
-        <button
-          className={styles.hudBtn}
+        <div className="h-4 w-[1px] bg-border mx-1" />
+
+        <Button
+          variant="ghost"
           onClick={copyCurrentToClipboard}
-          title="Copy to Clipboard (Ctrl+C)"
+          title="Copy Image to Clipboard (Ctrl+C)"
+          className="h-7 w-7 p-0 justify-center text-muted hover:text-fg"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-          </svg>
-        </button>
+          <Copy className="w-3.5 h-3.5" />
+        </Button>
 
-        {/* Filmstrip Toggle */}
-        <button
-          className={`${styles.hudBtn} ${showFilmstrip ? styles.active : ''}`}
+        <Button
+          variant={showFilmstrip ? "primary" : "ghost"}
           onClick={toggleFilmstrip}
           title="Toggle Bottom Filmstrip (B)"
+          className={`h-7 w-7 p-0 justify-center ${
+            showFilmstrip ? "bg-accent text-accent-fg" : "text-muted hover:text-fg"
+          }`}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="2" y="7" width="20" height="10" rx="2" />
-            <line x1="8" y1="7" x2="8" y2="17" />
-            <line x1="16" y1="7" x2="16" y2="17" />
-          </svg>
-        </button>
-      </div>
+          <Film className="w-3.5 h-3.5" />
+        </Button>
+      </HudPill>
     </div>
   );
 };

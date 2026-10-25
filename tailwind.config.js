@@ -2,11 +2,21 @@
 export default {
   content: [
     "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}"
+    "./src/**/*.{js,ts,jsx,tsx}",
+    "../strata/packages/ui/src/**/*.{js,ts,jsx,tsx}"
   ],
   theme: {
     extend: {
       colors: {
+        bg: "var(--k-bg)",
+        surface: "var(--k-surface)",
+        raised: "var(--k-raised)",
+        border: "var(--k-border)",
+        fg: "var(--k-fg)",
+        muted: "var(--k-muted)",
+        accent: "var(--k-accent)",
+        "accent-fg": "var(--k-accent-fg)",
+        danger: "var(--k-danger, #ef4444)",
         aerovex: {
           canvas: "var(--bg-canvas)",
           "canvas-subtle": "var(--bg-canvas-subtle)",
@@ -27,7 +37,8 @@ export default {
       borderRadius: {
         sm: "var(--radius-sm)",
         md: "var(--radius-md)",
-        lg: "var(--radius-lg)"
+        lg: "var(--radius-lg)",
+        pill: "9999px"
       }
     }
   },

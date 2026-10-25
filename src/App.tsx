@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Titlebar } from './components/Titlebar';
 import { Viewport } from './components/Viewport';
 import { FloatingHud } from './components/FloatingHud';
@@ -8,6 +8,11 @@ import { VideoTimeline } from './components/VideoTimeline';
 import { InspectorModal } from './components/InspectorModal';
 import { SettingsModal } from './components/SettingsModal';
 import { FileTypeBadge } from './components/FileTypeBadge';
+import {
+  ShortcutLegendModal,
+  useKeyboardShortcuts,
+  type ShortcutDefinition,
+} from '@aerovex/strata-ui';
 import { useViewerStore } from './stores/useViewerStore';
 import { getCliOptions, startWindowResize, isWindowMaximized, getMediaServerPort } from './lib/ipc';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
@@ -19,7 +24,6 @@ export const App: React.FC = () => {
     loadFolder,
     nextItem,
     prevItem,
-    resetView,
     centerView,
     setZoom,
     zoom,
@@ -41,6 +45,7 @@ export const App: React.FC = () => {
   } = useViewerStore();
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
 
   useEffect(() => {
@@ -194,117 +199,152 @@ export const App: React.FC = () => {
     };
   }, [openTargetFiles]);
 
-  // Global tactile keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if user is typing in an input
-      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
-        return;
-      }
+  const current = items[currentIndex];
 
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
-        e.preventDefault();
-        copyCurrentToClipboard();
-        return;
-      }
+  const handleTogglePlay = useCallback(() => {
+    if (current?.media_type === 'Video' || current?.media_type === 'Audio') {
+      setIsPlaying(!isPlaying);
+    }
+  }, [current, isPlaying, setIsPlaying]);
 
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'o' || e.key === 'O')) {
-        e.preventDefault();
-        openMediaFile();
-        return;
-      }
+  const handleToggleEdit = useCallback(() => {
+    if (current?.media_type !== 'Video') {
+      setActiveMode(activeMode === 'edit' ? 'view' : 'edit');
+    }
+  }, [current, activeMode, setActiveMode]);
 
-      if ((e.ctrlKey || e.metaKey) && (e.key === ',' || e.key === '<')) {
-        e.preventDefault();
-        setIsSettingsOpen(true);
-        return;
-      }
+  const handleToggleTrim = useCallback(() => {
+    if (current?.media_type === 'Video' || current?.media_type === 'Audio') {
+      setActiveMode(activeMode === 'trim' ? 'view' : 'trim');
+    }
+  }, [current, activeMode, setActiveMode]);
 
-      const current = items[currentIndex];
+  const shortcutDefs = useMemo<ShortcutDefinition[]>(
+    () => [
+      {
+        id: 'nav.next',
+        category: 'Navigation',
+        description: 'Next Media Item',
+        defaultKey: 'ArrowRight',
+        action: nextItem,
+      },
+      {
+        id: 'nav.prev',
+        category: 'Navigation',
+        description: 'Previous Media Item',
+        defaultKey: 'ArrowLeft',
+        action: prevItem,
+      },
+      {
+        id: 'view.center',
+        category: 'View',
+        description: 'Center and Fit Viewport',
+        defaultKey: '0',
+        action: centerView,
+      },
+      {
+        id: 'view.zoom_in',
+        category: 'View',
+        description: 'Zoom In',
+        defaultKey: '=',
+        action: () => setZoom(zoom * 1.25),
+      },
+      {
+        id: 'view.zoom_out',
+        category: 'View',
+        description: 'Zoom Out',
+        defaultKey: '-',
+        action: () => setZoom(zoom * 0.8),
+      },
+      {
+        id: 'play.toggle',
+        category: 'Playback',
+        description: 'Play / Pause Video or Audio',
+        defaultKey: 'Space',
+        action: handleTogglePlay,
+      },
+      {
+        id: 'tool.edit',
+        category: 'Tools',
+        description: 'Toggle Image Annotation Editor',
+        defaultKey: 'E',
+        action: handleToggleEdit,
+      },
+      {
+        id: 'tool.trim',
+        category: 'Tools',
+        description: 'Toggle Lossless Stream Trimmer',
+        defaultKey: 'T',
+        action: handleToggleTrim,
+      },
+      {
+        id: 'view.inspector',
+        category: 'View',
+        description: 'Toggle Media Inspector Drawer',
+        defaultKey: 'I',
+        action: toggleInspector,
+      },
+      {
+        id: 'view.filmstrip',
+        category: 'View',
+        description: 'Toggle Thumbnail Filmstrip',
+        defaultKey: 'B',
+        action: toggleFilmstrip,
+      },
+      {
+        id: 'view.slideshow',
+        category: 'View',
+        description: 'Toggle Fullscreen Slideshow',
+        defaultKey: 'F5',
+        action: toggleSlideshow,
+      },
+      {
+        id: 'file.open',
+        category: 'File',
+        description: 'Open Media File Dialog',
+        defaultKey: 'Mod+O',
+        action: openMediaFile,
+      },
+      {
+        id: 'file.copy',
+        category: 'File',
+        description: 'Copy Media to Clipboard',
+        defaultKey: 'Mod+C',
+        action: copyCurrentToClipboard,
+      },
+      {
+        id: 'app.preferences',
+        category: 'Preferences',
+        description: 'Open Preferences Dialog',
+        defaultKey: 'Mod+,',
+        action: () => setIsSettingsOpen(true),
+      },
+      {
+        id: 'app.shortcuts',
+        category: 'Help',
+        description: 'Show Keyboard Shortcuts Legend',
+        defaultKey: '?',
+        action: () => setIsShortcutsOpen((prev) => !prev),
+      },
+    ],
+    [
+      nextItem,
+      prevItem,
+      centerView,
+      setZoom,
+      zoom,
+      handleTogglePlay,
+      handleToggleEdit,
+      handleToggleTrim,
+      toggleInspector,
+      toggleFilmstrip,
+      toggleSlideshow,
+      openMediaFile,
+      copyCurrentToClipboard,
+    ]
+  );
 
-      switch (e.key) {
-        case 'ArrowRight':
-        case ']':
-          nextItem();
-          break;
-        case 'ArrowLeft':
-        case '[':
-          prevItem();
-          break;
-        case ' ':
-          if (current?.media_type === 'Video' || current?.media_type === 'Audio') {
-            e.preventDefault();
-            setIsPlaying(!isPlaying);
-          }
-          break;
-        case '0':
-        case 'f':
-        case 'F':
-          centerView();
-          break;
-        case '+':
-        case '=':
-          setZoom(zoom * 1.25);
-          break;
-        case '-':
-        case '_':
-          setZoom(zoom * 0.8);
-          break;
-        case 'e':
-        case 'E':
-          if (current?.media_type !== 'Video') {
-            setActiveMode(activeMode === 'edit' ? 'view' : 'edit');
-          }
-          break;
-        case 't':
-        case 'T':
-          if (current?.media_type === 'Video' || current?.media_type === 'Audio') {
-            setActiveMode(activeMode === 'trim' ? 'view' : 'trim');
-          }
-          break;
-        case 'i':
-        case 'I':
-          toggleInspector();
-          break;
-        case 'b':
-        case 'B':
-          toggleFilmstrip();
-          break;
-        case 's':
-        case 'S':
-        case 'F5':
-          toggleSlideshow();
-          break;
-        case 'Escape':
-          if (isSlideshowActive) {
-            setSlideshow(false);
-          }
-          setActiveMode('view');
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [
-    nextItem,
-    prevItem,
-    resetView,
-    centerView,
-    setZoom,
-    zoom,
-    items,
-    currentIndex,
-    isPlaying,
-    setIsPlaying,
-    activeMode,
-    setActiveMode,
-    toggleFilmstrip,
-    toggleInspector,
-    toggleSlideshow,
-    isSlideshowActive,
-    setSlideshow,
-  ]);
+  useKeyboardShortcuts(shortcutDefs);
 
   return (
     <div className={`${styles.appContainer} ${isMaximized ? styles.maximized : ''}`}>
@@ -331,6 +371,12 @@ export const App: React.FC = () => {
         <SettingsModal
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
+        />
+        <ShortcutLegendModal
+          open={isShortcutsOpen}
+          onClose={() => setIsShortcutsOpen(false)}
+          definitions={shortcutDefs}
+          title="Vexview Keyboard Shortcuts"
         />
       </div>
       <Filmstrip />

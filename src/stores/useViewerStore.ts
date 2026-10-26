@@ -355,6 +355,7 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
     try {
       if (current.media_type === 'Video') {
         const videoDetail = await probeVideo(current.path);
+        const currentIsPlaying = get().isPlaying;
         set({
           videoDetail,
           imageDetail: null,
@@ -362,7 +363,7 @@ export const useViewerStore = create<ViewerStore>((set, get) => ({
           duration: videoDetail.duration_seconds,
           trimRange: [0, videoDetail.duration_seconds],
           loading: false,
-          isPlaying: autoPlay,
+          isPlaying: currentIsPlaying || autoPlay,
         });
       } else if (current.media_type === 'Audio') {
         const audioRes = await audioEngine.loadFile(current.path, autoPlay);

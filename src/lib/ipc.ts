@@ -117,6 +117,14 @@ export async function getThumbnail(filePath: string, maxSize = 120): Promise<str
 
 let cachedMediaPort: number | null = null;
 
+if (isTauri) {
+  invoke<number>('get_media_server_port')
+    .then((port) => {
+      if (port > 0) cachedMediaPort = port;
+    })
+    .catch(() => {});
+}
+
 export async function getMediaServerPort(): Promise<number> {
   if (cachedMediaPort !== null && cachedMediaPort > 0) return cachedMediaPort;
   if (!isTauri) return 0;

@@ -27,13 +27,10 @@ export const VideoTimeline: React.FC = () => {
     resetView,
     centerView,
     activeMode,
-    setActiveMode,
     trimRange,
     setTrimRange,
     showFilmstrip,
     toggleFilmstrip,
-    showInspector,
-    toggleInspector,
     addCurrentToSequence,
   } = useViewerStore();
 
@@ -394,21 +391,6 @@ export const VideoTimeline: React.FC = () => {
             </>
           )}
 
-          {/* Trim Mode Toggle */}
-          <button
-            className={`${styles.controlBtn} ${activeMode === 'trim' ? styles.active : ''}`}
-            onClick={() => setActiveMode(activeMode === 'trim' ? 'view' : 'trim')}
-            title="Toggle Trimming Mode (T)"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="6" cy="6" r="3" />
-              <circle cx="6" cy="18" r="3" />
-              <line x1="20" y1="4" x2="8.12" y2="15.88" />
-              <line x1="14.47" y1="14.48" x2="20" y2="20" />
-              <line x1="8.12" y1="8.12" x2="12" y2="12" />
-            </svg>
-          </button>
-
           {/* Filmstrip Toggle */}
           <button
             className={`${styles.controlBtn} ${showFilmstrip ? styles.active : ''}`}
@@ -419,19 +401,6 @@ export const VideoTimeline: React.FC = () => {
               <rect x="2" y="7" width="20" height="10" rx="2" />
               <line x1="8" y1="7" x2="8" y2="17" />
               <line x1="16" y1="7" x2="16" y2="17" />
-            </svg>
-          </button>
-
-          {/* Inspector Toggle */}
-          <button
-            className={`${styles.controlBtn} ${showInspector ? styles.active : ''}`}
-            onClick={toggleInspector}
-            title="Toggle Media Inspector (I)"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="16" x2="12" y2="12" />
-              <line x1="12" y1="8" x2="12.01" y2="8" />
             </svg>
           </button>
         </div>

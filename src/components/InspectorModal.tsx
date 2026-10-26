@@ -126,7 +126,7 @@ export const InspectorModal: React.FC = () => {
   return (
     <aside
       data-drawer="true"
-      className="fixed top-10 right-0 bottom-0 w-80 bg-surface/95 backdrop-blur-xl border-l border-border flex flex-col z-40 select-none shadow-2xl animate-in slide-in-from-right duration-200"
+      className="absolute top-0 right-0 bottom-0 w-80 bg-surface/95 backdrop-blur-xl border-l border-border flex flex-col z-40 select-none shadow-2xl animate-in slide-in-from-right duration-200"
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">

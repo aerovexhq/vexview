@@ -17,14 +17,25 @@ window.addEventListener('contextmenu', (e) => {
   e.preventDefault();
 });
 
+import { getMediaServerPort } from './lib/ipc';
+
 const rootEl = document.getElementById('root');
 if (rootEl) {
-  ReactDOM.createRoot(rootEl).render(
-    <React.StrictMode>
-      <StrataThemeProvider theme="aerovex" preset="vexview">
-        <App />
-      </StrataThemeProvider>
-    </React.StrictMode>,
-  );
+  const mountApp = () => {
+    ReactDOM.createRoot(rootEl).render(
+      <React.StrictMode>
+        <StrataThemeProvider theme="aerovex" preset="vexview">
+          <App />
+        </StrataThemeProvider>
+      </React.StrictMode>,
+    );
+  };
+
+  // Eagerly resolve media server port so video playback can immediately stream via HTTP without URL switching
+  getMediaServerPort()
+    .catch(() => {})
+    .finally(() => {
+      mountApp();
+    });
 }
 

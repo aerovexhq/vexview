@@ -11,48 +11,18 @@ import styles from './Viewport.module.css';
 
 const getSafeArea = (viewportEl: HTMLElement) => {
   const viewportRect = viewportEl.getBoundingClientRect();
-
-  // Find top bar element
-  const topEl = (viewportEl.querySelector('[data-role="tool-palette"]') ||
-    document.querySelector('[data-role="tool-palette"]')) as HTMLElement | null;
-  let topBarrier = 0;
-  if (topEl) {
-    const topRect = topEl.getBoundingClientRect();
-    topBarrier = Math.max(0, topRect.bottom - viewportRect.top);
-  }
-
-  // Find bottom bar element (FloatingHud or VideoTimeline)
-  const bottomHudEl = document.querySelector('[data-role="floating-hud"]') as HTMLElement | null;
-  const bottomTimelineEl = document.querySelector('[data-role="video-timeline"]') as HTMLElement | null;
-  const bottomBar = bottomTimelineEl || bottomHudEl;
-
-  let bottomBarrier = 126;
-  if (bottomBar) {
-    const bottomRect = bottomBar.getBoundingClientRect();
-    if (bottomRect.top < viewportRect.bottom && bottomRect.bottom > viewportRect.top) {
-      bottomBarrier = Math.max(0, viewportRect.bottom - bottomRect.top);
-    }
-  }
-
-  const verticalPadding = 24; // Padding from top and bottom bars
-  const horizontalPadding = 32;
-
-  const effectiveTop = Math.max(16, topBarrier + verticalPadding);
-  const effectiveBottom = Math.max(16, bottomBarrier + verticalPadding);
+  const PADDING_RATIO = 0.025; // 2.5% padding margin
+  const horizontalPadding = Math.max(8, Math.round(viewportRect.width * PADDING_RATIO));
+  const verticalPadding = Math.max(8, Math.round(viewportRect.height * PADDING_RATIO));
 
   const availableWidth = Math.max(100, viewportRect.width - (horizontalPadding * 2));
-  const availableHeight = Math.max(100, viewportRect.height - effectiveTop - effectiveBottom);
-
-  const safeCenterY = effectiveTop + availableHeight / 2;
-  const viewportCenterY = viewportRect.height / 2;
-  const targetPanY = Math.round(safeCenterY - viewportCenterY);
-  const targetPanX = 0;
+  const availableHeight = Math.max(100, viewportRect.height - (verticalPadding * 2));
 
   return {
     availableWidth,
     availableHeight,
-    targetPanX,
-    targetPanY,
+    targetPanX: 0,
+    targetPanY: 0,
   };
 };
 
@@ -100,6 +70,8 @@ export const Viewport: React.FC = () => {
 
   const panRef = useRef(pan);
   const zoomRef = useRef(zoom);
+  const lastVideoPathRef = useRef<string | null>(null);
+  const stableVideoSrcRef = useRef<string>('');
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const rafRef = useRef<number | null>(null);
@@ -306,7 +278,7 @@ export const Viewport: React.FC = () => {
     const scaleY = availableHeight / mh;
     const fitScale = Math.min(scaleX, scaleY);
 
-    const targetZoom = Number((fitScale < 1.0 ? fitScale : Math.min(fitScale, 1.0)).toFixed(4));
+    const targetZoom = Number(fitScale.toFixed(4));
     const newPan = { x: targetPanX, y: targetPanY };
 
     panRef.current = newPan;
@@ -746,8 +718,23 @@ export const Viewport: React.FC = () => {
   }
 
   const assetUrl = convertFileSrc(current.path);
+  if (isVideo) {
+    if (lastVideoPathRef.current !== current.path) {
+      lastVideoPathRef.current = current.path;
+      stableVideoSrcRef.current = videoDetail?.stream_url || getVideoStreamUrl(current.path, assetUrl);
+    } else if (
+      videoDetail?.stream_url &&
+      !stableVideoSrcRef.current.includes('127.0.0.1') &&
+      videoDetail.stream_url.includes('127.0.0.1')
+    ) {
+      const vTime = videoRef.current?.currentTime || 0;
+      if (vTime < 0.2) {
+        stableVideoSrcRef.current = videoDetail.stream_url;
+      }
+    }
+  }
   const videoSrc = isVideo
-    ? (videoDetail?.stream_url || getVideoStreamUrl(current.path, assetUrl))
+    ? (stableVideoSrcRef.current || videoDetail?.stream_url || getVideoStreamUrl(current.path, assetUrl))
     : assetUrl;
   const displaySrc =
     editor.previewUrl ||

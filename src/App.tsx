@@ -7,9 +7,9 @@ import { EditorDrawer } from './components/EditorDrawer';
 import { VideoTimeline } from './components/VideoTimeline';
 import { InspectorModal } from './components/InspectorModal';
 import { SettingsModal } from './components/SettingsModal';
-import { FileTypeBadge } from './components/FileTypeBadge';
 import {
   ShortcutLegendModal,
+
   useKeyboardShortcuts,
   type ShortcutDefinition,
 } from '@aerovex/strata-ui';
@@ -363,8 +363,8 @@ export const App: React.FC = () => {
       <Titlebar onOpenSettings={() => setIsSettingsOpen(true)} />
       <div className={styles.mainArea}>
         <Viewport />
-        <FileTypeBadge />
         <FloatingHud />
+
         <VideoTimeline />
         <EditorDrawer />
         <InspectorModal />

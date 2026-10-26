@@ -33,8 +33,9 @@
 }
 
 .videoElement {
-  max-width: 90vw;
-  max-height: 80vh;
+  max-width: none;
+  max-height: none;
+  display: block;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
   border-radius: var(--radius-sm);
   outline: none;

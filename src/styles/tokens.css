@@ -20,15 +20,15 @@
   /* Borders & Dividers */
   --border-hairline: #3a3a36;
   --border-subtle: #45443e;
-  --border-active: #d97757;
-  --border-focus: #d97757;
+  --border-active: var(--k-accent, #06b6d4);
+  --border-focus: var(--k-accent, #06b6d4);
 
   /* Typography */
   --text-primary: #ece9e1;
   --text-secondary: #c5c2b8;
   --text-muted: #98958c;
-  --text-accent: #d97757;
-  --text-accent-hover: #e88b6f;
+  --text-accent: var(--k-accent, #06b6d4);
+  --text-accent-hover: var(--k-accent-hover, #22d3ee);
 
   /* Typography metrics */
   --font-sans: "Inter Variable", system-ui, -apple-system, sans-serif;

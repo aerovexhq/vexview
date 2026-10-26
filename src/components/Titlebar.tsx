@@ -261,8 +261,6 @@ export const Titlebar: React.FC<TitlebarProps> = ({ onOpenSettings }) => {
           Settings
         </button>
 
-        <div className={styles.divider} data-tauri-drag-region="false" />
-
         {/* Standard Strata Window Frame Controls */}
         <WindowControls
           onMinimize={handleMinimize}

@@ -30,3 +30,8 @@ mime_guess = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit2gtk = "2.0"
+gtk = "0.18"
+gdk = "0.18"
+gdkx11 = "0.18"
+
+

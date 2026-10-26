@@ -73,6 +73,57 @@ pub fn try_send_to_instance(_msg: &IpcMessage) -> Result<bool, String> {
     Ok(false)
 }
 
+pub fn force_focus_and_raise_window(window: &tauri::WebviewWindow) {
+    use tauri::Manager;
+
+    let _ = window.show();
+    let _ = window.unminimize();
+    let _ = window.set_focus();
+    let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
+
+    #[cfg(target_os = "linux")]
+    {
+        use gtk::prelude::*;
+        if let Ok(gtk_win) = window.gtk_window() {
+            gtk_win.show_all();
+            gtk_win.deiconify();
+            gtk_win.set_urgency_hint(false);
+
+            if let Some(gdk_win) = gtk_win.window() {
+                gdk_win.show();
+                gdk_win.raise();
+
+                let mut server_time = gdk::ffi::GDK_CURRENT_TIME as u32;
+                if let Some(x11_win) = gdk_win.downcast_ref::<gdkx11::X11Window>() {
+                    server_time = gdkx11::functions::x11_get_server_time(x11_win);
+                    x11_win.set_user_time(server_time);
+                    x11_win.move_to_current_desktop();
+                }
+                gdk_win.focus(server_time);
+                gtk_win.present_with_time(server_time);
+            } else {
+                gtk_win.present();
+            }
+            gtk_win.activate_focus();
+        }
+    }
+
+    // Brief always-on-top elevation forces X11 and Wayland window managers (Mutter, KWin)
+    // to bring the window above all other desktop layers, then releasing pins it at top of stack.
+    let _ = window.set_always_on_top(true);
+    let _ = window.set_focus();
+
+    let win_handle = window.clone();
+    let app_handle = window.app_handle().clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let _ = app_handle.run_on_main_thread(move || {
+            let _ = win_handle.set_always_on_top(false);
+            let _ = win_handle.set_focus();
+        });
+    });
+}
+
 #[cfg(unix)]
 pub fn start_ipc_listener(app_handle: tauri::AppHandle) {
     use std::io::{BufRead, BufReader, Write};
@@ -115,15 +166,14 @@ pub fn start_ipc_listener(app_handle: tauri::AppHandle) {
                                     let payload_clone = payload.clone();
                                     let _ = app_handle.run_on_main_thread(move || {
                                         if let Some(window) = handle.get_webview_window("main") {
-                                            let _ = window.show();
-                                            let _ = window.unminimize();
-                                            let _ = window.set_focus();
+                                            force_focus_and_raise_window(&window);
                                             if payload_clone.fullscreen {
                                                 let _ = window.set_fullscreen(true);
                                             }
                                         }
                                         let _ = handle.emit("cli-open-target", payload_clone);
                                     });
+
                                     let resp = IpcResponse {
                                         ok: true,
                                         message: None,

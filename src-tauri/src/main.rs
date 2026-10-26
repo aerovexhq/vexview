@@ -1319,9 +1319,9 @@ fn main() {
                     let _ = window.set_fullscreen(true);
                 }
                 if !is_daemon {
-                    let _ = window.show();
-                    let _ = window.set_focus();
+                    ipc_service::force_focus_and_raise_window(&window);
                 }
+
             }
             Ok(())
         })

@@ -81,33 +81,6 @@ pub fn force_focus_and_raise_window(window: &tauri::WebviewWindow) {
     let _ = window.set_focus();
     let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
 
-    #[cfg(target_os = "linux")]
-    {
-        use gtk::prelude::*;
-        if let Ok(gtk_win) = window.gtk_window() {
-            gtk_win.show_all();
-            gtk_win.deiconify();
-            gtk_win.set_urgency_hint(false);
-
-            if let Some(gdk_win) = gtk_win.window() {
-                gdk_win.show();
-                gdk_win.raise();
-
-                let mut server_time = gdk::ffi::GDK_CURRENT_TIME as u32;
-                if let Some(x11_win) = gdk_win.downcast_ref::<gdkx11::X11Window>() {
-                    server_time = gdkx11::functions::x11_get_server_time(x11_win);
-                    x11_win.set_user_time(server_time);
-                    x11_win.move_to_current_desktop();
-                }
-                gdk_win.focus(server_time);
-                gtk_win.present_with_time(server_time);
-            } else {
-                gtk_win.present();
-            }
-            gtk_win.activate_focus();
-        }
-    }
-
     // Brief always-on-top elevation forces X11 and Wayland window managers (Mutter, KWin)
     // to bring the window above all other desktop layers, then releasing pins it at top of stack.
     let _ = window.set_always_on_top(true);

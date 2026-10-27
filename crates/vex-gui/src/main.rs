@@ -18,19 +18,7 @@ fn main() -> anyhow::Result<()> {
         std::process::exit(1);
     }
 
-    #[cfg(feature = "gtk")]
-    {
-        println!(
-            "Launching GTK4/Libadwaita GUI for: {}",
-            target_path.display()
-        );
-        run_gtk_app(&target_path)?;
-    }
-
-    #[cfg(not(feature = "gtk"))]
-    {
-        inspect_media(&target_path);
-    }
+    inspect_media(&target_path);
 
     Ok(())
 }
@@ -97,10 +85,4 @@ fn inspect_media(path: &Path) {
             }
         }
     }
-}
-
-#[cfg(feature = "gtk")]
-fn run_gtk_app(_path: &Path) -> anyhow::Result<()> {
-    // GTK 4 / Libadwaita integration entrypoint
-    Ok(())
 }

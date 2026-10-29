@@ -7,7 +7,7 @@ import {
   isWindowMaximized,
   startWindowDragging,
 } from '../lib/ipc';
-import { WindowControls } from '@aerovex/strata-ui';
+import { WindowControls, VexviewMark } from '@aerovex/strata-ui';
 import styles from './Titlebar.module.css';
 
 interface TitlebarProps {
@@ -86,20 +86,7 @@ export const Titlebar: React.FC<TitlebarProps> = ({ onOpenSettings }) => {
       <div className={styles.leftSection} data-tauri-drag-region="deep">
         <div className={styles.appBrand} data-tauri-drag-region="deep">
           <div className="w-6 h-6 rounded-lg bg-[#2c2c29] border border-[#3a3a36] flex items-center justify-center shadow-xs">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#06b6d4"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
-              <circle cx="9" cy="9" r="2" />
-              <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
-            </svg>
+            <VexviewMark className="w-4 h-4 text-[#06b6d4]" />
           </div>
           <span className="font-semibold text-xs tracking-tight text-[#ece9e1]">Vexview</span>
           <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#2c2c29] border border-[#3a3a36] text-[#98958c]">

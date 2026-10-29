@@ -35,9 +35,9 @@ export default {
         }
       },
       borderRadius: {
-        sm: "var(--radius-sm)",
-        md: "var(--radius-md)",
-        lg: "var(--radius-lg)",
+        sm: "var(--radius-sm, 6px)",
+        md: "var(--radius-md, 8px)",
+        lg: "var(--radius-lg, 12px)",
         pill: "9999px"
       }
     }

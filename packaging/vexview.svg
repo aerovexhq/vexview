@@ -1,49 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <!-- Vibrant Glowing Amber Gradient -->
-    <linearGradient id="amberCore" x1="12%" y1="0%" x2="88%" y2="100%">
-      <stop offset="0%" stop-color="#fef08a"/>
-      <stop offset="20%" stop-color="#fbbf24"/>
-      <stop offset="55%" stop-color="#f59e0b"/>
-      <stop offset="85%" stop-color="#d97706"/>
-      <stop offset="100%" stop-color="#92400e"/>
+    <radialGradient id="bgGlow" cx="50%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#141923" />
+      <stop offset="60%" stop-color="#0c0e14" />
+      <stop offset="100%" stop-color="#07080b" />
+    </radialGradient>
+    <linearGradient id="cyanBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.5" />
+      <stop offset="50%" stop-color="#38bdf8" stop-opacity="0.2" />
+      <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.1" />
     </linearGradient>
-
-    <!-- Radiant Precision Rim Stroke -->
-    <linearGradient id="goldRim" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
-      <stop offset="30%" stop-color="#fef08a" stop-opacity="0.90"/>
-      <stop offset="70%" stop-color="#f59e0b" stop-opacity="0.95"/>
-      <stop offset="100%" stop-color="#78350f" stop-opacity="0.90"/>
-    </linearGradient>
-
-    <!-- Inner Bevel Highlight -->
-    <linearGradient id="innerBevel" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.45"/>
-      <stop offset="40%" stop-color="#ffffff" stop-opacity="0.08"/>
-      <stop offset="100%" stop-color="#000000" stop-opacity="0.15"/>
-    </linearGradient>
-
-    <!-- Elevated App Icon Shadow -->
-    <filter id="iconShadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000000" flood-opacity="0.40"/>
-      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.25"/>
+    <filter id="markGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
     </filter>
   </defs>
 
-  <g filter="url(#iconShadow)">
-    <!-- Base Hexagon -->
-    <polygon points="480,256 368,450 144,450 32,256 144,62 368,62"
-             fill="url(#amberCore)"
-             stroke="url(#goldRim)"
-             stroke-width="12"
-             stroke-linejoin="round"/>
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#bgGlow)" stroke="url(#cyanBorder)" stroke-width="4" />
 
-    <!-- Subtle Inner Bevel for Tactile Depth -->
-    <polygon points="474,256 365,445 147,445 38,256 147,67 365,67"
-             fill="url(#innerBevel)"
-             stroke="rgba(255, 255, 255, 0.2)"
-             stroke-width="1"
-             stroke-linejoin="round"/>
+  <g transform="translate(96, 96) scale(5)" filter="url(#markGlow)">
+    <g stroke="#06b6d4" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M 8 20 L 8 11 A 3 3 0 0 1 11 8 L 20 8" />
+      <path d="M 44 8 L 53 8 A 3 3 0 0 1 56 11 L 56 20" />
+      <path d="M 8 44 L 8 53 A 3 3 0 0 0 11 56 L 20 56" />
+      <path d="M 44 56 L 53 56 A 3 3 0 0 0 56 53 L 56 44" />
+    </g>
+    <circle cx="32" cy="32" r="14" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 32 23.5 L 40.5 32 L 32 40.5 L 23.5 32 Z" fill="#06b6d4" />
+    <circle cx="32" cy="32" r="2.2" fill="#0c0e14" />
+    <g stroke="#38bdf8" stroke-width="2.0" stroke-linecap="round">
+      <line x1="13" y1="32" x2="17" y2="32" />
+      <line x1="47" y1="32" x2="51" y2="32" />
+      <line x1="32" y1="13" x2="32" y2="17" />
+      <line x1="32" y1="47" x2="32" y2="51" />
+    </g>
   </g>
 </svg>
